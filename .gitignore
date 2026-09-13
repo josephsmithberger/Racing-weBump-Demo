@@ -17,3 +17,17 @@ data_*/
 mono_crash.*.json
 
 .vscode/
+
+# Project Planning & Agent Scratchpads (Internal only)
+planning/
+
+# Web & Platform export artifacts
+web_build/
+build/
+export/
+
+# Local configuration & secrets
+config.local.json
+secrets.cfg
+*.env
+.env.*
