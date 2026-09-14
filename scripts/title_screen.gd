@@ -14,8 +14,6 @@ extends Control
 @onready var turntable: Node3D = %Turntable
 @onready var model_pivot: Node3D = %ModelPivot
 @onready var car_name_label: Label = %CarNameLabel
-@onready var car_category_badge: Label = %CarCategoryBadge
-@onready var car_desc_label: Label = %CarDescLabel
 @onready var color_swatch: ColorRect = %ColorSwatch
 @onready var color_status_label: Label = %ColorStatusLabel
 @onready var pagination_container: HBoxContainer = %PaginationContainer
@@ -29,6 +27,7 @@ extends Control
 @onready var progress_bar: ProgressBar = %ProgressBar
 @onready var status_label: Label = %StatusLabel
 
+var _audio: RaceAudio = null
 var _is_loading: bool = false
 var _progress: Array = []
 
@@ -42,6 +41,9 @@ var _is_dragging: bool = false
 var _turntable_auto_spin: bool = true
 
 func _ready() -> void:
+	_audio = RaceAudio.new()
+	add_child(_audio)
+	
 	loading_container.visible = false
 	button_container.visible = true
 	hint_label.visible = true
@@ -54,14 +56,18 @@ func _ready() -> void:
 	_setup_car_chooser()
 	
 	play_button.pressed.connect(_on_play_pressed)
+	play_button.mouse_entered.connect(func(): if _audio and not play_button.disabled: _audio.play_hover())
 	
 	if connect_button:
 		connect_button.connection_started.connect(_on_connection_started)
 		connect_button.connection_changed.connect(_on_connection_changed)
 
 func _get_api() -> Node:
-	if is_inside_tree() and get_tree().root.has_node("WeBumpAPI"):
+	if is_inside_tree() and get_tree() and get_tree().root and get_tree().root.has_node("WeBumpAPI"):
 		return get_tree().root.get_node("WeBumpAPI")
+	var main_loop = Engine.get_main_loop() as SceneTree
+	if main_loop and main_loop.root and main_loop.root.has_node("WeBumpAPI"):
+		return main_loop.root.get_node("WeBumpAPI")
 	return null
 
 func _setup_mode_display() -> void:
@@ -103,9 +109,11 @@ func _setup_car_chooser() -> void:
 		initial_id = api.get_selected_car_body()
 	_current_car_index = CarPresets.get_preset_index(initial_id)
 	
-	# 2. Connect large touch navigation buttons
+	# 2. Connect large touch navigation buttons with sound
 	prev_car_button.pressed.connect(_on_prev_car_pressed)
 	next_car_button.pressed.connect(_on_next_car_pressed)
+	prev_car_button.mouse_entered.connect(func(): if _audio: _audio.play_hover())
+	next_car_button.mouse_entered.connect(func(): if _audio: _audio.play_hover())
 	
 	# 3. Touch drag / swipe gesture receiver on preview card
 	preview_card.gui_input.connect(_on_preview_gui_input)
@@ -122,7 +130,7 @@ func _build_pagination_dots() -> void:
 	
 	for i in range(CarPresets.PRESETS.size()):
 		var dot_btn = Button.new()
-		dot_btn.custom_minimum_size = Vector2(24, 24)
+		dot_btn.custom_minimum_size = Vector2(28, 28)
 		dot_btn.focus_mode = Control.FOCUS_NONE
 		dot_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		dot_btn.flat = true
@@ -146,19 +154,29 @@ func _build_pagination_dots() -> void:
 		dot_btn.add_child(dot_panel)
 		
 		var dot_idx = i
-		dot_btn.pressed.connect(func(): _select_car_index(dot_idx))
+		dot_btn.pressed.connect(func(): 
+			if _audio: _audio.play_click()
+			_select_car_index(dot_idx)
+		)
+		dot_btn.mouse_entered.connect(func(): if _audio: _audio.play_hover())
 		pagination_container.add_child(dot_btn)
 
 func _on_prev_car_pressed() -> void:
+	if _audio:
+		_audio.play_click()
 	_select_car_index(posmod(_current_car_index - 1, CarPresets.PRESETS.size()))
 
 func _on_next_car_pressed() -> void:
+	if _audio:
+		_audio.play_click()
 	_select_car_index(posmod(_current_car_index + 1, CarPresets.PRESETS.size()))
 
 func _select_car_index(idx: int) -> void:
 	if idx == _current_car_index:
 		return
 	_current_car_index = idx
+	if _audio:
+		_audio.play_car_select()
 	_update_car_display(true)
 
 func _on_preview_gui_input(event: InputEvent) -> void:
@@ -208,10 +226,8 @@ func _update_car_display(animate: bool) -> void:
 	var preset = CarPresets.PRESETS[_current_car_index]
 	var car_id: String = preset["id"]
 	
-	# 1. Update text metadata
+	# 1. Update text metadata (clean vehicle name, no blurbs)
 	car_name_label.text = preset["name"]
-	car_category_badge.text = preset["category"]
-	car_desc_label.text = preset["desc"]
 	
 	# 2. Update WeBumpAPI selection
 	var api = _get_api()
@@ -345,6 +361,8 @@ func _on_connection_changed(is_connected: bool, profile: Dictionary) -> void:
 	_update_preview_nameplate()
 	
 	if is_connected:
+		if _audio:
+			_audio.play_connect_success()
 		play_button.disabled = false
 		play_button.text = "Start Race"
 		var p_name = profile.get("display_name", "Player")
@@ -370,6 +388,17 @@ func _on_connection_changed(is_connected: bool, profile: Dictionary) -> void:
 func _on_play_pressed() -> void:
 	if _is_loading or play_button.disabled:
 		return
+
+	if _audio:
+		_audio.play_go()
+
+	# Guarantee selected car preset is committed before scene transition
+	var preset = CarPresets.PRESETS[_current_car_index]
+	var car_id: String = preset["id"]
+	var api = _get_api()
+	if api:
+		api.set_selected_car_body(car_id)
+		print("[TitleScreen] Car '%s' confirmed and saved for main race." % car_id)
 
 	_is_loading = true
 	button_container.visible = false

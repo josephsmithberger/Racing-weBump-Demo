@@ -4,23 +4,23 @@
 [ext_resource type="PackedScene" uid="uid://cm8lq72w3ep8y" path="res://scenes/webump_connect_button.tscn" id="2_wbbtn"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_card"]
-content_margin_left = 30.0
-content_margin_top = 20.0
-content_margin_right = 30.0
-content_margin_bottom = 20.0
-bg_color = Color(0.07, 0.08, 0.12, 0.95)
+content_margin_left = 36.0
+content_margin_top = 24.0
+content_margin_right = 36.0
+content_margin_bottom = 24.0
+bg_color = Color(0.07, 0.08, 0.13, 0.96)
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
 border_width_bottom = 1
-border_color = Color(0.18, 0.22, 0.32, 0.8)
+border_color = Color(0.2, 0.25, 0.36, 0.85)
 corner_radius_top_left = 24
 corner_radius_top_right = 24
 corner_radius_bottom_right = 24
 corner_radius_bottom_left = 24
-shadow_color = Color(0, 0, 0, 0.5)
-shadow_size = 24
-shadow_offset = Vector2(0, 8)
+shadow_color = Color(0, 0, 0, 0.55)
+shadow_size = 32
+shadow_offset = Vector2(0, 10)
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_mock_banner"]
 content_margin_left = 12.0
@@ -215,6 +215,16 @@ corner_radius_top_right = 6
 corner_radius_bottom_right = 6
 corner_radius_bottom_left = 6
 
+[sub_resource type="Gradient" id="Gradient_bg"]
+offsets = PackedFloat32Array(0, 0.5, 1)
+colors = PackedColorArray(0.1, 0.14, 0.22, 1, 0.05, 0.06, 0.1, 1, 0.03, 0.035, 0.05, 1)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_bg"]
+gradient = SubResource("Gradient_bg")
+fill = 1
+fill_from = Vector2(0.5, 0.45)
+fill_to = Vector2(0.95, 0.95)
+
 [node name="TitleScreen" type="Control"]
 layout_mode = 3
 anchors_preset = 15
@@ -224,14 +234,14 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_ts001")
 
-[node name="Background" type="ColorRect" parent="."]
+[node name="Background" type="TextureRect" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.04, 0.05, 0.08, 1)
+texture = SubResource("GradientTexture2D_bg")
 
 [node name="CenterContainer" type="CenterContainer" parent="."]
 layout_mode = 1
@@ -242,13 +252,13 @@ grow_horizontal = 2
 grow_vertical = 2
 
 [node name="CardPanel" type="PanelContainer" parent="CenterContainer"]
-custom_minimum_size = Vector2(460, 0)
+custom_minimum_size = Vector2(580, 0)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_card")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer/CardPanel"]
 layout_mode = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 14
 alignment = 1
 
 [node name="TitleHeader" type="VBoxContainer" parent="CenterContainer/CardPanel/VBoxContainer"]
@@ -258,14 +268,14 @@ theme_override_constants/separation = 4
 [node name="BadgeLabel" type="Label" parent="CenterContainer/CardPanel/VBoxContainer/TitleHeader"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0, 0.89, 1, 1)
-theme_override_font_sizes/font_size = 12
+theme_override_font_sizes/font_size = 13
 text = "CONNECTED GAMES SHOWCASE"
 horizontal_alignment = 1
 
 [node name="TitleLabel" type="Label" parent="CenterContainer/CardPanel/VBoxContainer/TitleHeader"]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_font_sizes/font_size = 32
+theme_override_font_sizes/font_size = 36
 text = "weBump RACING"
 horizontal_alignment = 1
 
@@ -278,7 +288,7 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_mock_banner")
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.72, 0, 1)
-theme_override_font_sizes/font_size = 12
+theme_override_font_sizes/font_size = 13
 text = "🛠️ MOCK MODE (EDITOR) — SIMULATED API"
 horizontal_alignment = 1
 
@@ -289,22 +299,22 @@ theme_override_styles/separator = SubResource("StyleBoxLine_divider")
 [node name="CarChooser" type="VBoxContainer" parent="CenterContainer/CardPanel/VBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 10
 
 [node name="PreviewRow" type="HBoxContainer" parent="CenterContainer/CardPanel/VBoxContainer/CarChooser"]
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 12
 alignment = 1
 
 [node name="PrevCarButton" type="Button" parent="CenterContainer/CardPanel/VBoxContainer/CarChooser/PreviewRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(52, 52)
+custom_minimum_size = Vector2(56, 56)
 layout_mode = 2
 size_flags_vertical = 4
 focus_mode = 2
 mouse_default_cursor_shape = 2
 theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 24
 theme_override_styles/focus = SubResource("StyleBoxFlat_nav_hover")
 theme_override_styles/hover = SubResource("StyleBoxFlat_nav_hover")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_nav_pressed")
@@ -313,7 +323,7 @@ text = "◀"
 
 [node name="PreviewCard" type="PanelContainer" parent="CenterContainer/CardPanel/VBoxContainer/CarChooser/PreviewRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(250, 140)
+custom_minimum_size = Vector2(400, 210)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_styles/panel = SubResource("StyleBoxFlat_chooser_card")
@@ -327,11 +337,11 @@ unique_name_in_owner = true
 own_world_3d = true
 transparent_bg = true
 handle_input_locally = false
-size = Vector2i(250, 140)
+size = Vector2i(400, 210)
 render_target_update_mode = 4
 
 [node name="PreviewCamera" type="Camera3D" parent="CenterContainer/CardPanel/VBoxContainer/CarChooser/PreviewRow/PreviewCard/SubViewportContainer/PreviewViewport"]
-transform = Transform3D(1, 0, 0, 0, 0.939693, 0.34202, 0, -0.34202, 0.939693, 0, 1.15, 2.75)
+transform = Transform3D(1, 0, 0, 0, 0.939693, 0.34202, 0, -0.34202, 0.939693, 0, 1.25, 2.95)
 fov = 34.0
 
 [node name="MainLight" type="DirectionalLight3D" parent="CenterContainer/CardPanel/VBoxContainer/CarChooser/PreviewRow/PreviewCard/SubViewportContainer/PreviewViewport"]
@@ -350,13 +360,13 @@ unique_name_in_owner = true
 
 [node name="NextCarButton" type="Button" parent="CenterContainer/CardPanel/VBoxContainer/CarChooser/PreviewRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(52, 52)
+custom_minimum_size = Vector2(56, 56)
 layout_mode = 2
 size_flags_vertical = 4
 focus_mode = 2
 mouse_default_cursor_shape = 2
 theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 24
 theme_override_styles/focus = SubResource("StyleBoxFlat_nav_hover")
 theme_override_styles/hover = SubResource("StyleBoxFlat_nav_hover")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_nav_pressed")
@@ -372,23 +382,8 @@ alignment = 1
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_font_sizes/font_size = 18
+theme_override_font_sizes/font_size = 24
 text = "Classic Cab"
-
-[node name="CarCategoryBadge" type="Label" parent="CenterContainer/CardPanel/VBoxContainer/CarChooser/CarInfoRow"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0, 0.89, 1, 1)
-theme_override_font_sizes/font_size = 10
-theme_override_styles/normal = SubResource("StyleBoxFlat_badge")
-text = "ALL-ROUNDER"
-
-[node name="CarDescLabel" type="Label" parent="CenterContainer/CardPanel/VBoxContainer/CarChooser"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0.65, 0.7, 0.8, 1)
-theme_override_font_sizes/font_size = 12
-text = "Balanced cornering and dependable top speed."
 horizontal_alignment = 1
 
 [node name="ColorRow" type="HBoxContainer" parent="CenterContainer/CardPanel/VBoxContainer/CarChooser"]
@@ -398,7 +393,7 @@ alignment = 1
 
 [node name="ColorSwatch" type="ColorRect" parent="CenterContainer/CardPanel/VBoxContainer/CarChooser/ColorRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(14, 14)
+custom_minimum_size = Vector2(16, 16)
 layout_mode = 2
 size_flags_vertical = 4
 color = Color(1, 0.7, 0, 1)
@@ -407,13 +402,13 @@ color = Color(1, 0.7, 0, 1)
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.7, 0.75, 0.85, 1)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 13
 text = "Default Color • Connect to sync"
 
 [node name="PaginationContainer" type="HBoxContainer" parent="CenterContainer/CardPanel/VBoxContainer/CarChooser"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/separation = 6
+theme_override_constants/separation = 8
 alignment = 1
 
 [node name="ButtonContainer" type="VBoxContainer" parent="CenterContainer/CardPanel/VBoxContainer"]
@@ -428,13 +423,13 @@ layout_mode = 2
 
 [node name="PlayButton" type="Button" parent="CenterContainer/CardPanel/VBoxContainer/ButtonContainer"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(340, 56)
+custom_minimum_size = Vector2(380, 60)
 layout_mode = 2
 focus_mode = 2
 mouse_default_cursor_shape = 2
 theme_override_colors/font_disabled_color = Color(0.45, 0.48, 0.55, 0.7)
 theme_override_colors/font_color = Color(1, 1, 1, 1)
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 22
 theme_override_styles/focus = SubResource("StyleBoxFlat_start_focus")
 theme_override_styles/disabled = SubResource("StyleBoxFlat_start_disabled")
 theme_override_styles/hover = SubResource("StyleBoxFlat_start_hover")
@@ -445,7 +440,7 @@ text = "Start Race (Locked)"
 
 [node name="HintLabel" type="Label" parent="CenterContainer/CardPanel/VBoxContainer"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(340, 0)
+custom_minimum_size = Vector2(380, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.55, 0.6, 0.7, 1)
 theme_override_font_sizes/font_size = 13

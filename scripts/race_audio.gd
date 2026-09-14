@@ -8,6 +8,8 @@ var _sfx_final_lap: AudioStreamWAV
 var _sfx_finish: AudioStreamWAV
 var _sfx_click: AudioStreamWAV
 var _sfx_hover: AudioStreamWAV
+var _sfx_select: AudioStreamWAV
+var _sfx_connect: AudioStreamWAV
 
 const SAMPLE_RATE: int = 22050
 
@@ -39,6 +41,12 @@ func play_click() -> void:
 func play_hover() -> void:
 	_play_stream(_sfx_hover, -6.0)
 
+func play_car_select() -> void:
+	_play_stream(_sfx_select, -3.0)
+
+func play_connect_success() -> void:
+	_play_stream(_sfx_connect, -1.0)
+
 func _play_stream(stream: AudioStreamWAV, volume_db: float = 0.0) -> void:
 	if stream == null:
 		return
@@ -58,6 +66,8 @@ func _generate_all_sfx() -> void:
 	_sfx_finish = _synth_fanfare()
 	_sfx_click = _synth_tone([880.0], 0.05, 0.005, 0.03, 0.3, 0.5)
 	_sfx_hover = _synth_tone([1320.0], 0.03, 0.005, 0.02, 0.15, 0.3)
+	_sfx_select = _synth_melody([659.25, 880.0], [0.06, 0.10], 0.005, 0.4)
+	_sfx_connect = _synth_melody([587.33, 880.0, 1174.66], [0.08, 0.08, 0.22], 0.008, 0.6)
 
 func _synth_tone(freqs: Array, duration: float, attack: float, decay: float, square_mix: float, volume: float) -> AudioStreamWAV:
 	var total_samples: int = int(duration * SAMPLE_RATE)

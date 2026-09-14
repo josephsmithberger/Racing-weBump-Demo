@@ -4,47 +4,37 @@ const PRESETS: Array[Dictionary] = [
 	{
 		"id": "truck_yellow",
 		"name": "Classic Cab",
-		"category": "ALL-ROUNDER",
 		"model_path": "res://models/vehicle-truck-yellow.glb",
 		"type": "truck",
-		"default_color": Color(1.0, 0.70, 0.0), # Amber
-		"desc": "Balanced cornering and dependable top speed."
+		"default_color": Color(1.0, 0.70, 0.0) # Amber
 	},
 	{
 		"id": "truck_red",
 		"name": "Sport Racer",
-		"category": "HIGH SPEED",
 		"model_path": "res://models/vehicle-truck-red.glb",
 		"type": "truck",
-		"default_color": Color(1.0, 0.09, 0.27), # Racing Red
-		"desc": "Aerodynamic chassis tuned for long straights."
+		"default_color": Color(1.0, 0.09, 0.27) # Racing Red
 	},
 	{
 		"id": "truck_green",
 		"name": "Heavy Hauler",
-		"category": "MAX TRACTION",
 		"model_path": "res://models/vehicle-truck-green.glb",
 		"type": "truck",
-		"default_color": Color(0.0, 0.90, 0.46), # Electric Green
-		"desc": "Stiff suspension with maximum road grip."
+		"default_color": Color(0.0, 0.90, 0.46) # Electric Green
 	},
 	{
 		"id": "truck_purple",
 		"name": "Compact Bug",
-		"category": "AGILE DRIFT",
 		"model_path": "res://models/vehicle-truck-purple.glb",
 		"type": "truck",
-		"default_color": Color(0.83, 0.0, 0.98), # Neon Purple
-		"desc": "Lightweight body with razor-sharp steering."
+		"default_color": Color(0.83, 0.0, 0.98) # Neon Purple
 	},
 	{
 		"id": "motorcycle",
 		"name": "Street Cycle",
-		"category": "EXTREME AGILITY",
 		"model_path": "res://models/vehicle-motorcycle.glb",
 		"type": "motorcycle",
-		"default_color": Color(0.0, 0.90, 1.0), # Cyan Blue
-		"desc": "Dynamic leaning physics and ultra-tight lines."
+		"default_color": Color(0.0, 0.90, 1.0) # Cyan Blue
 	}
 ]
 
