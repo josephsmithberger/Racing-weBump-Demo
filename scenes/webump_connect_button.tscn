@@ -1,0 +1,41 @@
+[gd_scene format=3 uid="uid://cm8lq72w3ep8y"]
+
+[ext_resource type="Script" path="res://scripts/webump_connect_button.gd" id="1_wbbtn"]
+[ext_resource type="Texture2D" uid="uid://h52ape3mouhg" path="res://sprites/webump/webump-icon.png" id="2_icon"]
+
+[node name="WeBumpConnectButton" type="Button"]
+custom_minimum_size = Vector2(340, 64)
+offset_right = 340.0
+offset_bottom = 64.0
+focus_mode = 2
+mouse_default_cursor_shape = 2
+text = ""
+script = ExtResource("1_wbbtn")
+
+[node name="HBoxContainer" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/separation = 14
+alignment = 1
+
+[node name="IconRect" type="TextureRect" parent="HBoxContainer"]
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+texture = ExtResource("2_icon")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Label" type="Label" parent="HBoxContainer"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 19
+text = "Connect to weBump"
+vertical_alignment = 1
+

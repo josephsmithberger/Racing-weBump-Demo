@@ -1,6 +1,137 @@
-[gd_scene format=3 uid="uid://c6xk7b1y8q2m1"]
+[gd_scene load_steps=11 format=3 uid="uid://c6xk7b1y8q2m1"]
 
 [ext_resource type="Script" path="res://scripts/title_screen.gd" id="1_ts001"]
+[ext_resource type="PackedScene" uid="uid://cm8lq72w3ep8y" path="res://scenes/webump_connect_button.tscn" id="2_wbbtn"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_card"]
+content_margin_left = 36.0
+content_margin_top = 28.0
+content_margin_right = 36.0
+content_margin_bottom = 28.0
+bg_color = Color(0.07, 0.08, 0.12, 0.95)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.18, 0.22, 0.32, 0.8)
+corner_radius_top_left = 24
+corner_radius_top_right = 24
+corner_radius_bottom_right = 24
+corner_radius_bottom_left = 24
+shadow_color = Color(0, 0, 0, 0.5)
+shadow_size = 24
+shadow_offset = Vector2(0, 8)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_mock_banner"]
+content_margin_left = 12.0
+content_margin_top = 6.0
+content_margin_right = 12.0
+content_margin_bottom = 6.0
+bg_color = Color(1, 0.72, 0, 0.12)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(1, 0.72, 0, 0.6)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_start_normal"]
+content_margin_left = 20.0
+content_margin_top = 12.0
+content_margin_right = 20.0
+content_margin_bottom = 12.0
+bg_color = Color(0.06, 0.72, 0.44, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.12, 0.85, 0.52, 1)
+corner_radius_top_left = 20
+corner_radius_top_right = 20
+corner_radius_bottom_right = 20
+corner_radius_bottom_left = 20
+shadow_color = Color(0.06, 0.72, 0.44, 0.35)
+shadow_size = 14
+shadow_offset = Vector2(0, 4)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_start_hover"]
+content_margin_left = 20.0
+content_margin_top = 12.0
+content_margin_right = 20.0
+content_margin_bottom = 12.0
+bg_color = Color(0.1, 0.82, 0.5, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.2, 0.92, 0.6, 1)
+corner_radius_top_left = 20
+corner_radius_top_right = 20
+corner_radius_bottom_right = 20
+corner_radius_bottom_left = 20
+shadow_color = Color(0.1, 0.82, 0.5, 0.45)
+shadow_size = 18
+shadow_offset = Vector2(0, 5)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_start_pressed"]
+content_margin_left = 20.0
+content_margin_top = 12.0
+content_margin_right = 20.0
+content_margin_bottom = 12.0
+bg_color = Color(0.04, 0.58, 0.35, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.08, 0.7, 0.42, 1)
+corner_radius_top_left = 20
+corner_radius_top_right = 20
+corner_radius_bottom_right = 20
+corner_radius_bottom_left = 20
+shadow_size = 4
+shadow_offset = Vector2(0, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_start_disabled"]
+content_margin_left = 20.0
+content_margin_top = 12.0
+content_margin_right = 20.0
+content_margin_bottom = 12.0
+bg_color = Color(0.12, 0.14, 0.19, 0.7)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.2, 0.23, 0.3, 0.6)
+corner_radius_top_left = 20
+corner_radius_top_right = 20
+corner_radius_bottom_right = 20
+corner_radius_bottom_left = 20
+shadow_size = 0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_start_focus"]
+corner_radius_top_left = 23
+corner_radius_top_right = 23
+corner_radius_bottom_right = 23
+corner_radius_bottom_left = 23
+draw_center = false
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(1, 1, 1, 1)
+expand_margin_left = 3.0
+expand_margin_top = 3.0
+expand_margin_right = 3.0
+expand_margin_bottom = 3.0
+
+[sub_resource type="StyleBoxLine" id="StyleBoxLine_divider"]
+color = Color(0.2, 0.25, 0.35, 0.6)
+grow_begin = 0.0
+grow_end = 0.0
+thickness = 1
 
 [node name="TitleScreen" type="Control"]
 layout_mode = 3
@@ -11,6 +142,15 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_ts001")
 
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.04, 0.05, 0.08, 1)
+
 [node name="CenterContainer" type="CenterContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
@@ -19,34 +159,103 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer"]
+[node name="CardPanel" type="PanelContainer" parent="CenterContainer"]
+custom_minimum_size = Vector2(430, 0)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_card")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer/CardPanel"]
 layout_mode = 2
 theme_override_constants/separation = 16
 alignment = 1
 
-[node name="TitleLabel" type="Label" parent="CenterContainer/VBoxContainer"]
+[node name="TitleHeader" type="VBoxContainer" parent="CenterContainer/CardPanel/VBoxContainer"]
 layout_mode = 2
-text = "Starter Kit Racing"
+theme_override_constants/separation = 4
+
+[node name="BadgeLabel" type="Label" parent="CenterContainer/CardPanel/VBoxContainer/TitleHeader"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0.89, 1, 1)
+theme_override_font_sizes/font_size = 12
+text = "CONNECTED GAMES SHOWCASE"
 horizontal_alignment = 1
 
-[node name="PlayButton" type="Button" parent="CenterContainer/VBoxContainer"]
+[node name="TitleLabel" type="Label" parent="CenterContainer/CardPanel/VBoxContainer/TitleHeader"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 32
+text = "weBump RACING"
+horizontal_alignment = 1
+
+[node name="ModeBanner" type="PanelContainer" parent="CenterContainer/CardPanel/VBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Play"
+theme_override_styles/panel = SubResource("StyleBoxFlat_mock_banner")
 
-[node name="LoadingContainer" type="VBoxContainer" parent="CenterContainer/VBoxContainer"]
+[node name="ModeLabel" type="Label" parent="CenterContainer/CardPanel/VBoxContainer/ModeBanner"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.72, 0, 1)
+theme_override_font_sizes/font_size = 12
+text = "🛠️ MOCK MODE (EDITOR) — SIMULATED API"
+horizontal_alignment = 1
+
+[node name="HSeparator" type="HSeparator" parent="CenterContainer/CardPanel/VBoxContainer"]
+layout_mode = 2
+theme_override_styles/separator = SubResource("StyleBoxLine_divider")
+
+[node name="ButtonContainer" type="VBoxContainer" parent="CenterContainer/CardPanel/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 14
+alignment = 1
+
+[node name="WeBumpConnectButton" parent="CenterContainer/CardPanel/VBoxContainer/ButtonContainer" instance=ExtResource("2_wbbtn")]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="PlayButton" type="Button" parent="CenterContainer/CardPanel/VBoxContainer/ButtonContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(340, 56)
+layout_mode = 2
+focus_mode = 2
+mouse_default_cursor_shape = 2
+theme_override_colors/font_disabled_color = Color(0.45, 0.48, 0.55, 0.7)
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 20
+theme_override_styles/focus = SubResource("StyleBoxFlat_start_focus")
+theme_override_styles/disabled = SubResource("StyleBoxFlat_start_disabled")
+theme_override_styles/hover = SubResource("StyleBoxFlat_start_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_start_pressed")
+theme_override_styles/normal = SubResource("StyleBoxFlat_start_normal")
+disabled = true
+text = "Start Race (Locked)"
+
+[node name="HintLabel" type="Label" parent="CenterContainer/CardPanel/VBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(340, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.6, 0.7, 1)
+theme_override_font_sizes/font_size = 13
+text = "Connect to weBump to enable racing"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="LoadingContainer" type="VBoxContainer" parent="CenterContainer/CardPanel/VBoxContainer"]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 10
 
-[node name="ProgressBar" type="ProgressBar" parent="CenterContainer/VBoxContainer/LoadingContainer"]
+[node name="ProgressBar" type="ProgressBar" parent="CenterContainer/CardPanel/VBoxContainer/LoadingContainer"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(200, 0)
+custom_minimum_size = Vector2(340, 16)
 layout_mode = 2
 
-[node name="StatusLabel" type="Label" parent="CenterContainer/VBoxContainer/LoadingContainer"]
+[node name="StatusLabel" type="Label" parent="CenterContainer/CardPanel/VBoxContainer/LoadingContainer"]
 unique_name_in_owner = true
 layout_mode = 2
+theme_override_colors/font_color = Color(0.8, 0.85, 0.95, 1)
+theme_override_font_sizes/font_size = 14
 text = "Loading..."
 horizontal_alignment = 1
