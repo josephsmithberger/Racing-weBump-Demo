@@ -1,0 +1,14 @@
+{
+  "client_id": "wb_5c296d5bb9144ad9a039d24056eaa802",
+  "client_platform": "web",
+  "api_origin": "https://api.webump.app",
+  "redirect_uri": "https://webump.app/demo",
+  "scopes": [
+    "profile.basic",
+    "game.state",
+    "visitors.receive",
+    "game.capsule",
+    "game.showcase"
+  ],
+  "mock_mode": false
+}
