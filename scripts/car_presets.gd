@@ -141,7 +141,7 @@ static func get_api(caller: Node = null) -> Node:
 		var script = load("res://scripts/webump_api.gd")
 		var api = script.new()
 		api.name = "WeBumpAPI"
-		root.add_child(api)
+		root.call_deferred("add_child", api)
 		_api_instance = api
 		return _api_instance
 	return null

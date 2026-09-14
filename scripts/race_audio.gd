@@ -135,7 +135,6 @@ func _synth_melody(freqs: Array, durations: Array, attack: float, volume: float)
 	var bytes := PackedByteArray()
 	bytes.resize(total_samples * 2)
 	
-	var cur_idx: int = 0
 	var note_start_sample: int = 0
 	var note_idx: int = 0
 	

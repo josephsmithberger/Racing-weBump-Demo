@@ -40,6 +40,19 @@ var _current_verifier: String = ""
 var _current_state: String = ""
 var _http_request: HTTPRequest
 
+func _enter_tree() -> void:
+	if get_tree() and get_tree().root:
+		if get_tree().root.has_node("WeBumpAPI") and get_tree().root.get_node("WeBumpAPI") != self:
+			queue_free()
+			return
+		if get_parent() != get_tree().root:
+			reparent.call_deferred(get_tree().root)
+
+func _get_tree_safe() -> SceneTree:
+	if is_inside_tree() and get_tree():
+		return get_tree()
+	return Engine.get_main_loop() as SceneTree
+
 func _ready() -> void:
 	selected_car_body = CarPresets.get_selected_car()
 	_load_config()
@@ -50,9 +63,10 @@ func _ready() -> void:
 	is_mock_mode = is_editor_mode or _config_mock_mode
 	
 	# Internal HTTP request node for live API requests
-	_http_request = HTTPRequest.new()
-	_http_request.name = "WeBumpHTTPRequest"
-	add_child(_http_request)
+	if _http_request == null:
+		_http_request = HTTPRequest.new()
+		_http_request.name = "WeBumpHTTPRequest"
+		add_child(_http_request)
 
 var _config_mock_mode: bool = false
 
@@ -98,23 +112,28 @@ func connect_player() -> void:
 # Mock Mode Flow (Used in Godot Editor)
 # -------------------------------------------------------------------
 func _start_mock_connection() -> void:
-	var timer = get_tree().create_timer(0.8)
-	timer.timeout.connect(func():
-		is_connecting = false
-		is_authenticated = true
-		
-		# In editor mock mode, use Maya's profile (#FF3366 Neon Rose) per planning docs
-		current_player_profile = {
-			"display_name": "Racer Maya",
-			"theme_color": "#FF3366",
-			"player_id": "wb_mock_maya_01",
-			"is_mock": true,
-			"mode": "Mock Mode (Editor)",
-			"connected_at": Time.get_datetime_string_from_system()
-		}
-		
-		auth_succeeded.emit(current_player_profile, true)
-	)
+	var tree = _get_tree_safe()
+	if tree:
+		var timer = tree.create_timer(0.8)
+		timer.timeout.connect(_complete_mock_auth)
+	else:
+		_complete_mock_auth()
+
+func _complete_mock_auth() -> void:
+	is_connecting = false
+	is_authenticated = true
+	
+	# In editor mock mode, use Maya's profile (#FF3366 Neon Rose) per planning docs
+	current_player_profile = {
+		"display_name": "Racer Maya",
+		"theme_color": "#FF3366",
+		"player_id": "wb_mock_maya_01",
+		"is_mock": true,
+		"mode": "Mock Mode (Editor)",
+		"connected_at": Time.get_datetime_string_from_system()
+	}
+	
+	auth_succeeded.emit(current_player_profile, true)
 
 # -------------------------------------------------------------------
 # Live OAuth 2.0 PKCE Flow (Used in Public Builds / Web / Staging)
@@ -385,7 +404,7 @@ func put_state(key: String, value: Variant, callback: Callable = Callable()) -> 
 	var json_body = JSON.stringify(payload)
 	var http = HTTPRequest.new()
 	add_child(http)
-	http.request_completed.connect(func(result: int, response_code: int, response_headers: PackedStringArray, body: PackedByteArray):
+	http.request_completed.connect(func(result: int, response_code: int, response_headers: PackedStringArray, _body: PackedByteArray):
 		http.queue_free()
 		if result == HTTPRequest.RESULT_SUCCESS and (response_code == 200 or response_code == 201):
 			for h in response_headers:
@@ -483,7 +502,7 @@ func put_capsule(value: Dictionary, callback: Callable = Callable()) -> void:
 	var json_body = JSON.stringify(payload)
 	var http = HTTPRequest.new()
 	add_child(http)
-	http.request_completed.connect(func(result: int, response_code: int, response_headers: PackedStringArray, body: PackedByteArray):
+	http.request_completed.connect(func(result: int, response_code: int, response_headers: PackedStringArray, _body: PackedByteArray):
 		http.queue_free()
 		if result == HTTPRequest.RESULT_SUCCESS and (response_code == 200 or response_code == 201):
 			for h in response_headers:
@@ -570,7 +589,7 @@ func put_showcase(value: Dictionary, callback: Callable = Callable()) -> void:
 	var json_body = JSON.stringify(payload)
 	var http = HTTPRequest.new()
 	add_child(http)
-	http.request_completed.connect(func(result: int, response_code: int, response_headers: PackedStringArray, body: PackedByteArray):
+	http.request_completed.connect(func(result: int, response_code: int, response_headers: PackedStringArray, _body: PackedByteArray):
 		http.queue_free()
 		if result == HTTPRequest.RESULT_SUCCESS and (response_code == 200 or response_code == 201):
 			for h in response_headers:

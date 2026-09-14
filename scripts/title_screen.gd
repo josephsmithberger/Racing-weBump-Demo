@@ -341,7 +341,7 @@ func _on_connection_started() -> void:
 		hint_label.text = "Connecting to weBump API (OAuth PKCE)…"
 		hint_label.add_theme_color_override("font_color", Color(0.0, 0.89, 1.0, 1.0))
 
-func _on_connection_changed(is_connected: bool, profile: Dictionary) -> void:
+func _on_connection_changed(connected: bool, profile: Dictionary) -> void:
 	# Live update paint color & nameplate on the car chooser preview
 	var preset = CarPresets.PRESETS[_current_car_index]
 	var active_color = _get_current_paint_color(preset)
@@ -350,7 +350,7 @@ func _on_connection_changed(is_connected: bool, profile: Dictionary) -> void:
 	_update_color_swatch()
 	_update_preview_nameplate()
 	
-	if is_connected:
+	if connected:
 		if _audio:
 			_audio.play_connect_success()
 		play_button.disabled = false

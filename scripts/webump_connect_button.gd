@@ -3,7 +3,7 @@ class_name WeBumpConnectButton extends Button
 signal connection_started()
 signal connection_success(player_data: Dictionary)
 signal connection_failed(error_msg: String)
-signal connection_changed(is_connected: bool, player_data: Dictionary)
+signal connection_changed(connected: bool, player_data: Dictionary)
 
 const COLOR_READY_BG: Color = Color(0.0, 0.5608, 1.0, 1.0)          # #008fff
 const COLOR_READY_HOVER: Color = Color(0.102, 0.627, 1.0, 1.0)      # Brightness 1.06
@@ -18,7 +18,7 @@ const COLOR_CONN_PRESSED: Color = Color(0.82, 0.90, 0.98, 1.0)
 const COLOR_CONN_BORDER: Color = Color(0.5647, 0.7373, 0.8902, 1.0) # #90bce3
 const COLOR_CONN_TEXT: Color = Color(0.0275, 0.2, 0.3608, 1.0)      # #07335c
 
-var is_connected: bool = false
+var is_user_connected: bool = false
 var is_connecting: bool = false
 var player_profile: Dictionary = {}
 
@@ -91,7 +91,7 @@ func _setup_styles() -> void:
 	add_theme_stylebox_override("focus", _style_focus)
 
 func _update_visuals() -> void:
-	if is_connected:
+	if is_user_connected:
 		_style_normal.bg_color = COLOR_CONN_BG
 		_style_normal.border_color = COLOR_CONN_BORDER
 		_style_normal.shadow_size = 0
@@ -143,7 +143,8 @@ func _update_visuals() -> void:
 		
 		_style_pressed.bg_color = COLOR_READY_PRESSED
 		_style_pressed.border_color = COLOR_READY_BORDER
-		_style_pressed.shadow_size = 10
+		_style_pressed.shadow_size = 8
+		_style_pressed.shadow_color = COLOR_READY_SHADOW
 		_style_pressed.shadow_offset = Vector2(0, 2)
 		
 		_style_disabled.bg_color = COLOR_READY_BG
@@ -160,14 +161,14 @@ func _on_pressed() -> void:
 	if is_connecting:
 		return
 	
-	if is_connected:
+	if is_user_connected:
 		_animate_connected_click()
 		return
 	
 	start_connection()
 
 func start_connection() -> void:
-	if is_connecting or is_connected:
+	if is_connecting or is_user_connected:
 		return
 	
 	var api = _get_api()
@@ -199,7 +200,7 @@ func _on_api_auth_started(_is_mock: bool) -> void:
 
 func _on_api_auth_succeeded(profile: Dictionary, _is_mock: bool) -> void:
 	is_connecting = false
-	is_connected = true
+	is_user_connected = true
 	disabled = false
 	player_profile = profile
 	_update_visuals()
@@ -214,7 +215,7 @@ func _on_api_auth_succeeded(profile: Dictionary, _is_mock: bool) -> void:
 
 func _on_api_auth_failed(error_msg: String) -> void:
 	is_connecting = false
-	is_connected = false
+	is_user_connected = false
 	disabled = false
 	_update_visuals()
 	connection_failed.emit(error_msg)
@@ -222,7 +223,7 @@ func _on_api_auth_failed(error_msg: String) -> void:
 
 func _on_api_disconnected() -> void:
 	is_connecting = false
-	is_connected = false
+	is_user_connected = false
 	disabled = false
 	player_profile.clear()
 	_update_visuals()
