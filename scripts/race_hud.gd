@@ -34,6 +34,7 @@ var _audio: RaceAudio
 @onready var result_lap2: Label = %ResultLap2
 @onready var result_lap3: Label = %ResultLap3
 @onready var result_best_lap: Label = %ResultBestLap
+@onready var ghost_sync_label: Label = %GhostSyncLabel
 @onready var retry_button: Button = %RetryButton
 @onready var title_button: Button = %TitleButton
 
@@ -303,6 +304,31 @@ func _show_results(total_time: float, lap_times: Array, best_lap_time: float) ->
 			result_lap3.modulate = Color("#FFEA00")
 	
 	result_best_lap.text = "BEST LAP: " + format_time(best_lap_time)
+	
+	if ghost_sync_label != null:
+		var car_name = "Vehicle"
+		var is_new_record = true
+		var previous_best_ms = -1
+		if is_inside_tree() and get_tree().root.has_node("WeBumpAPI"):
+			var api = get_tree().root.get_node("WeBumpAPI")
+			var preset = CarPresets.get_preset_by_id(api.get_selected_car_body())
+			car_name = preset.get("name", "Vehicle")
+			var saved_save = api.local_state.get("racing_save", {})
+			if typeof(saved_save) == TYPE_DICTIONARY:
+				previous_best_ms = int(saved_save.get("best_3lap_ms", -1))
+			
+			var total_time_ms = int(total_time * 1000.0)
+			if previous_best_ms > 0 and total_time_ms > previous_best_ms:
+				is_new_record = false
+		
+		if is_new_record:
+			var record_sec: int = int(round(total_time))
+			ghost_sync_label.text = "🏆 NEW RECORD! %ds highscore saved to weBump!" % record_sec
+			ghost_sync_label.add_theme_color_override("font_color", Color(0.2, 1.0, 0.55, 1.0))
+		else:
+			var prev_sec: int = int(round(float(previous_best_ms) / 1000.0))
+			ghost_sync_label.text = "☁️ %s Ghost (Record: %ds preserved)" % [car_name, prev_sec]
+			ghost_sync_label.add_theme_color_override("font_color", Color(0.65, 0.75, 0.85, 1.0))
 	
 	# Animate card sliding in with diagonal spring overshoot
 	results_card.pivot_offset = results_card.size / 2.0

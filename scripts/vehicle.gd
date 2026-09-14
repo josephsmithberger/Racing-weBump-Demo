@@ -17,6 +17,18 @@ class_name Vehicle extends Node3D
 @onready var wheel_bl = get_node_or_null("Container/Model/wheel-back-left")
 @onready var wheel_br = get_node_or_null("Container/Model/wheel-back-right")
 
+# Motorcycle specific elements
+var motorcycle: Node3D
+var fork: Node3D
+var wheel_front: Node3D
+var wheel_back: Node3D
+var is_motorcycle: bool = false
+
+# Nameplate & Custom Paint
+var nameplate_label: Label3D
+var current_preset_id: String = "truck_yellow"
+var _paint_material: ShaderMaterial
+
 # Effects
 
 @onready var trail_left = get_node_or_null("Container/TrailLeft")
@@ -43,6 +55,34 @@ var prev_position: Vector3
 var calculated_lean: float
 var controls_enabled: bool = true
 
+func _ready() -> void:
+	# If this is the player vehicle (not an AI subclass)
+	if not (self is AIVehicle):
+		var selected_id = "truck_yellow"
+		if is_inside_tree() and get_tree().root.has_node("WeBumpAPI"):
+			var api = get_tree().root.get_node("WeBumpAPI")
+			selected_id = api.get_selected_car_body()
+			api.auth_succeeded.connect(func(_profile: Dictionary, _is_mock: bool):
+				var col = api.get_player_theme_color()
+				apply_body_color(col)
+				setup_nameplate(api.get_player_display_name())
+			)
+			api.session_disconnected.connect(func():
+				var preset = CarPresets.get_preset_by_id(selected_id)
+				apply_body_color(preset.get("default_color", Color(1.0, 0.70, 0.0)))
+				setup_nameplate("Player")
+			)
+			api.car_body_changed.connect(func(new_body: String):
+				apply_car_preset(new_body)
+			)
+		
+		apply_car_preset(selected_id)
+		
+		var name_str = "Player"
+		if is_inside_tree() and get_tree().root.has_node("WeBumpAPI"):
+			name_str = get_tree().root.get_node("WeBumpAPI").get_player_display_name()
+		setup_nameplate(name_str)
+
 # Public Functions
 
 func get_vehicle_position() -> Vector3: return vehicle_model.global_position
@@ -50,6 +90,89 @@ func set_controls_enabled(enabled: bool) -> void:
 	controls_enabled = enabled
 	if not enabled:
 		input = Vector3.ZERO
+
+func apply_car_preset(car_id: String) -> void:
+	current_preset_id = car_id
+	var preset = CarPresets.get_preset_by_id(car_id)
+	var model_path: String = preset.get("model_path", "res://models/vehicle-truck-yellow.glb")
+	var model_scene = load(model_path)
+	if not model_scene:
+		push_error("Failed to load model: %s" % model_path)
+		return
+	
+	var old_model = $Container.get_node_or_null("Model")
+	if old_model:
+		old_model.queue_free()
+	
+	var new_model = model_scene.instantiate()
+	new_model.name = "Model"
+	$Container.add_child(new_model)
+	
+	# Check if motorcycle
+	if new_model.has_node("motorcycle"):
+		is_motorcycle = true
+		motorcycle = new_model.get_node("motorcycle")
+		vehicle_body = motorcycle.get_node_or_null("body")
+		fork = motorcycle.get_node_or_null("body/fork")
+		wheel_front = motorcycle.get_node_or_null("wheel-front")
+		wheel_back = motorcycle.get_node_or_null("wheel-back")
+		wheel_fl = null
+		wheel_fr = null
+		wheel_bl = null
+		wheel_br = null
+	else:
+		is_motorcycle = false
+		motorcycle = null
+		fork = null
+		wheel_front = null
+		wheel_back = null
+		vehicle_body = new_model.get_node_or_null("body")
+		wheel_fl = new_model.get_node_or_null("wheel-front-left")
+		wheel_fr = new_model.get_node_or_null("wheel-front-right")
+		wheel_bl = new_model.get_node_or_null("wheel-back-left")
+		wheel_br = new_model.get_node_or_null("wheel-back-right")
+	
+	# Apply active theme color
+	var col = _get_active_color(preset)
+	apply_body_color(col)
+
+func _get_active_color(preset: Dictionary = {}) -> Color:
+	if is_inside_tree() and get_tree().root.has_node("WeBumpAPI"):
+		var api = get_tree().root.get_node("WeBumpAPI")
+		if api.is_authenticated:
+			return api.get_player_theme_color()
+	if preset.has("default_color"):
+		return preset["default_color"]
+	return Color(1.0, 0.70, 0.0)
+
+func apply_body_color(color: Color) -> void:
+	if vehicle_body == null:
+		return
+	
+	if _paint_material == null:
+		var shader = preload("res://shaders/car_paint.gdshader")
+		_paint_material = ShaderMaterial.new()
+		_paint_material.shader = shader
+		_paint_material.set_shader_parameter("albedo_texture", preload("res://models/Textures/colormap.png"))
+	
+	_paint_material.set_shader_parameter("paint_color", color)
+	_paint_material.set_shader_parameter("use_paint_override", true)
+	vehicle_body.material_override = _paint_material
+
+func setup_nameplate(display_name: String) -> void:
+	if nameplate_label == null:
+		nameplate_label = Label3D.new()
+		nameplate_label.name = "Nameplate"
+		nameplate_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		nameplate_label.position = Vector3(0, 1.85, 0)
+		nameplate_label.font_size = 28
+		nameplate_label.outline_size = 8
+		nameplate_label.outline_modulate = Color(0.04, 0.05, 0.08, 0.95)
+		nameplate_label.shaded = false
+		nameplate_label.double_sided = true
+		$Container.add_child(nameplate_label)
+	
+	nameplate_label.text = display_name
 
 # Functions
 
@@ -127,30 +250,33 @@ func handle_input(delta):
 	sphere.angular_velocity += vehicle_model.get_global_transform().basis.x * (linear_speed * 100) * delta
 
 func effect_body(delta):
-	
-	calculated_lean = lerp_angle(calculated_lean, -input.x / 5 * linear_speed, delta * 5)
-	
-	# Slightly tilt (and move) body based on acceleration and steering
-	
-	if vehicle_body != null:
-		
-		vehicle_body.rotation.x = lerp_angle(vehicle_body.rotation.x, -(linear_speed - acceleration) / 6, delta * 10)
-		vehicle_body.rotation.z = calculated_lean
-		
-		vehicle_body.position = vehicle_body.position.lerp(Vector3(0, 0.2, 0), delta * 5)
+	if is_motorcycle and motorcycle != null:
+		var target_lean = -input.x / 5.0 * linear_speed 
+		calculated_lean = lerp_angle(calculated_lean, target_lean, delta * 5.0)
+		motorcycle.rotation.z = lerp_angle(motorcycle.rotation.z, input.x * linear_speed, delta * 3.0)
+		if vehicle_body != null:
+			vehicle_body.rotation.x = lerp_angle(vehicle_body.rotation.x, -(linear_speed - acceleration) / 6.0, delta * 10.0)
+	else:
+		calculated_lean = lerp_angle(calculated_lean, -input.x / 5.0 * linear_speed, delta * 5.0)
+		if vehicle_body != null:
+			vehicle_body.rotation.x = lerp_angle(vehicle_body.rotation.x, -(linear_speed - acceleration) / 6.0, delta * 10.0)
+			vehicle_body.rotation.z = calculated_lean
+			vehicle_body.position = vehicle_body.position.lerp(Vector3(0, 0.2, 0), delta * 5.0)
 	
 func effect_wheels(delta):
-
-	# Rotate wheels based on acceleration
-
-	for wheel in [wheel_fl, wheel_fr, wheel_bl, wheel_br]:
-		if wheel != null:
-			wheel.rotation.x += acceleration
-
-	# Rotate front wheels based on steering direction
-
-	if wheel_fl != null: wheel_fl.rotation.y = lerp_angle(wheel_fl.rotation.y, -input.x / 1.5, delta * 10)
-	if wheel_fr != null: wheel_fr.rotation.y = lerp_angle(wheel_fr.rotation.y, -input.x / 1.5, delta * 10)
+	if is_motorcycle:
+		for wheel in [wheel_front, wheel_back]:
+			if wheel != null:
+				wheel.rotation.x += acceleration
+		if wheel_front != null and fork != null:
+			fork.rotation.y = lerp_angle(fork.rotation.y, -input.x / 1.5, delta * 5.0)
+			wheel_front.rotation.y = lerp_angle(wheel_front.rotation.y, -input.x / 1.5, delta * 10.0)
+	else:
+		for wheel in [wheel_fl, wheel_fr, wheel_bl, wheel_br]:
+			if wheel != null:
+				wheel.rotation.x += acceleration
+		if wheel_fl != null: wheel_fl.rotation.y = lerp_angle(wheel_fl.rotation.y, -input.x / 1.5, delta * 10.0)
+		if wheel_fr != null: wheel_fr.rotation.y = lerp_angle(wheel_fr.rotation.y, -input.x / 1.5, delta * 10.0)
 
 # Engine sounds
 

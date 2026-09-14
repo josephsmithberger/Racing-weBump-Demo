@@ -4,8 +4,16 @@ signal auth_started(is_mock: bool)
 signal auth_succeeded(player_profile: Dictionary, is_mock: bool)
 signal auth_failed(error_message: String)
 signal session_disconnected()
+signal car_body_changed(body_id: String)
+signal state_saved(key: String, value: Variant)
+signal state_loaded(key: String, value: Variant)
+signal capsule_saved(value: Dictionary)
+signal capsule_loaded(value: Dictionary)
+signal showcase_saved(value: Dictionary)
+signal showcase_loaded(value: Dictionary)
 
 const CONFIG_PATH: String = "res://config.json"
+const SAVE_STATE_PATH: String = "user://webump_state.json"
 
 var client_id: String = "wb_5c296d5bb9144ad9a039d24056eaa802"
 var api_origin: String = "https://api.webump.app"
@@ -22,12 +30,19 @@ var refresh_token: String = ""
 var token_expires_at: int = 0
 var current_player_profile: Dictionary = {}
 
+var selected_car_body: String = "truck_yellow"
+var local_state: Dictionary = {}
+var local_capsule: Dictionary = {}
+var local_showcase: Dictionary = {}
+var current_etag: String = "\"1\""
+
 var _current_verifier: String = ""
 var _current_state: String = ""
 var _http_request: HTTPRequest
 
 func _ready() -> void:
 	_load_config()
+	_load_local_state()
 	
 	# Determine mode: editor always enables mock mode unless explicitly forced
 	is_editor_mode = OS.has_feature("editor")
@@ -238,3 +253,364 @@ func disconnect_player() -> void:
 	refresh_token = ""
 	current_player_profile.clear()
 	session_disconnected.emit()
+
+# -------------------------------------------------------------------
+# Local State & Player Preferences
+# -------------------------------------------------------------------
+func _load_local_state() -> void:
+	if not FileAccess.file_exists(SAVE_STATE_PATH):
+		return
+	var file = FileAccess.open(SAVE_STATE_PATH, FileAccess.READ)
+	if not file:
+		return
+	var parsed = JSON.parse_string(file.get_as_text())
+	if typeof(parsed) == TYPE_DICTIONARY:
+		local_state = parsed
+		if local_state.has("selected_car_body"):
+			selected_car_body = str(local_state["selected_car_body"])
+		if local_state.has("capsule") and typeof(local_state["capsule"]) == TYPE_DICTIONARY:
+			local_capsule = local_state["capsule"]
+		if local_state.has("showcase") and typeof(local_state["showcase"]) == TYPE_DICTIONARY:
+			local_showcase = local_state["showcase"]
+
+func _save_local_state() -> void:
+	local_state["capsule"] = local_capsule
+	local_state["showcase"] = local_showcase
+	var file = FileAccess.open(SAVE_STATE_PATH, FileAccess.WRITE)
+	if file:
+		file.store_string(JSON.stringify(local_state, "  "))
+
+func set_selected_car_body(body_id: String) -> void:
+	if selected_car_body != body_id:
+		selected_car_body = body_id
+		local_state["selected_car_body"] = body_id
+		_save_local_state()
+		car_body_changed.emit(body_id)
+
+func get_selected_car_body() -> String:
+	return selected_car_body
+
+func get_player_display_name() -> String:
+	if is_authenticated and current_player_profile.has("display_name"):
+		return str(current_player_profile["display_name"])
+	return "Player"
+
+func get_player_theme_color() -> Color:
+	if is_authenticated and current_player_profile.has("theme_color"):
+		var hex: String = str(current_player_profile["theme_color"])
+		return Color.from_string(hex, Color(0.06, 0.72, 0.44, 1.0))
+	var preset = CarPresets.get_preset_by_id(selected_car_body)
+	return preset.get("default_color", Color(1.0, 0.70, 0.0))
+
+func get_player_theme_color_hex() -> String:
+	if is_authenticated and current_player_profile.has("theme_color"):
+		return str(current_player_profile["theme_color"])
+	var c = get_player_theme_color()
+	return "#" + c.to_html(false)
+
+# -------------------------------------------------------------------
+# Platform State & Ghost API (/v1/me/state/{key})
+# -------------------------------------------------------------------
+func get_state(key: String, callback: Callable = Callable()) -> void:
+	if is_mock_mode:
+		var val = local_state.get(key, null)
+		state_loaded.emit(key, val)
+		if callback.is_valid():
+			callback.call(true, val)
+		return
+	
+	if access_token.is_empty():
+		if callback.is_valid():
+			callback.call(false, null)
+		return
+	
+	var url = "%s/v1/me/state/%s" % [api_origin, key.uri_encode()]
+	var headers = [
+		"Authorization: Bearer %s" % access_token,
+		"Accept: application/json"
+	]
+	var http = HTTPRequest.new()
+	add_child(http)
+	http.request_completed.connect(func(result: int, response_code: int, response_headers: PackedStringArray, body: PackedByteArray):
+		http.queue_free()
+		if result == HTTPRequest.RESULT_SUCCESS and response_code == 200:
+			for h in response_headers:
+				if h.to_lower().begins_with("etag:"):
+					current_etag = h.substr(5).strip_edges()
+			var json = JSON.parse_string(body.get_string_from_utf8())
+			var val = null
+			if typeof(json) == TYPE_DICTIONARY and json.has("value"):
+				val = json["value"]
+			state_loaded.emit(key, val)
+			if callback.is_valid():
+				callback.call(true, val)
+		else:
+			if callback.is_valid():
+				callback.call(false, null)
+	)
+	http.request(url, headers, HTTPClient.METHOD_GET)
+
+func put_state(key: String, value: Variant, callback: Callable = Callable()) -> void:
+	local_state[key] = value
+	_save_local_state()
+	
+	if is_mock_mode:
+		print("[WeBumpAPI Mock] Persisted state key '%s' (%s)" % [key, str(value).substr(0, 60)])
+		state_saved.emit(key, value)
+		if callback.is_valid():
+			callback.call(true, value)
+		return
+	
+	if access_token.is_empty():
+		if callback.is_valid():
+			callback.call(false, null)
+		return
+	
+	var url = "%s/v1/me/state/%s" % [api_origin, key.uri_encode()]
+	var headers = [
+		"Authorization: Bearer %s" % access_token,
+		"Content-Type: application/json",
+		"Accept: application/json",
+		"If-Match: %s" % current_etag
+	]
+	var payload = {
+		"value": value
+	}
+	var json_body = JSON.stringify(payload)
+	var http = HTTPRequest.new()
+	add_child(http)
+	http.request_completed.connect(func(result: int, response_code: int, response_headers: PackedStringArray, body: PackedByteArray):
+		http.queue_free()
+		if result == HTTPRequest.RESULT_SUCCESS and (response_code == 200 or response_code == 201):
+			for h in response_headers:
+				if h.to_lower().begins_with("etag:"):
+					current_etag = h.substr(5).strip_edges()
+			state_saved.emit(key, value)
+			if callback.is_valid():
+				callback.call(true, value)
+		else:
+			push_warning("[WeBumpAPI] put_state failed with code %d" % response_code)
+			if callback.is_valid():
+				callback.call(false, null)
+	)
+	http.request(url, headers, HTTPClient.METHOD_PUT, json_body)
+
+func save_ghost_telemetry(ghost_data: Dictionary) -> void:
+	print("[WeBumpAPI] Saving ghost telemetry with car_body: '%s' (%d samples)..." % [
+		ghost_data.get("car_body", "unknown"),
+		ghost_data.get("samples", []).size()
+	])
+	put_state("ghost_telemetry", ghost_data)
+
+# -------------------------------------------------------------------
+# Public Capsule & Showcase APIs (/v1/me/capsule & /v1/me/showcase)
+# Public data shown on the weBump app upon bumping or on profile shelf
+# -------------------------------------------------------------------
+func get_capsule(callback: Callable = Callable()) -> void:
+	if is_mock_mode:
+		capsule_loaded.emit(local_capsule)
+		if callback.is_valid():
+			callback.call(true, local_capsule)
+		return
+	
+	if access_token.is_empty():
+		if callback.is_valid():
+			callback.call(false, {})
+		return
+	
+	var url = "%s/v1/me/capsule" % api_origin
+	var headers = [
+		"Authorization: Bearer %s" % access_token,
+		"Accept: application/json"
+	]
+	var http = HTTPRequest.new()
+	add_child(http)
+	http.request_completed.connect(func(result: int, response_code: int, response_headers: PackedStringArray, body: PackedByteArray):
+		http.queue_free()
+		if result == HTTPRequest.RESULT_SUCCESS and response_code == 200:
+			for h in response_headers:
+				if h.to_lower().begins_with("etag:"):
+					current_etag = h.substr(5).strip_edges()
+			var json = JSON.parse_string(body.get_string_from_utf8())
+			var val: Dictionary = {}
+			if typeof(json) == TYPE_DICTIONARY and json.has("data") and typeof(json["data"]) == TYPE_DICTIONARY:
+				val = json["data"]
+			local_capsule = val
+			local_state["capsule"] = val
+			_save_local_state()
+			capsule_loaded.emit(val)
+			if callback.is_valid():
+				callback.call(true, val)
+		else:
+			if callback.is_valid():
+				callback.call(false, {})
+	)
+	http.request(url, headers, HTTPClient.METHOD_GET)
+
+func put_capsule(value: Dictionary, callback: Callable = Callable()) -> void:
+	local_capsule = value
+	local_state["capsule"] = value
+	_save_local_state()
+	
+	if is_mock_mode:
+		print("[WeBumpAPI Mock] Persisted public capsule: %s" % str(value))
+		capsule_saved.emit(value)
+		if callback.is_valid():
+			callback.call(true, value)
+		return
+	
+	if access_token.is_empty():
+		if callback.is_valid():
+			callback.call(false, {})
+		return
+	
+	var url = "%s/v1/me/capsule" % api_origin
+	var headers = [
+		"Authorization: Bearer %s" % access_token,
+		"Content-Type: application/json",
+		"Accept: application/json",
+		"If-Match: %s" % current_etag
+	]
+	var payload = {
+		"value": value
+	}
+	var json_body = JSON.stringify(payload)
+	var http = HTTPRequest.new()
+	add_child(http)
+	http.request_completed.connect(func(result: int, response_code: int, response_headers: PackedStringArray, body: PackedByteArray):
+		http.queue_free()
+		if result == HTTPRequest.RESULT_SUCCESS and (response_code == 200 or response_code == 201):
+			for h in response_headers:
+				if h.to_lower().begins_with("etag:"):
+					current_etag = h.substr(5).strip_edges()
+			capsule_saved.emit(value)
+			if callback.is_valid():
+				callback.call(true, value)
+		else:
+			push_warning("[WeBumpAPI] put_capsule failed with code %d" % response_code)
+			if callback.is_valid():
+				callback.call(false, {})
+	)
+	http.request(url, headers, HTTPClient.METHOD_PUT, json_body)
+
+func get_showcase(callback: Callable = Callable()) -> void:
+	if is_mock_mode:
+		showcase_loaded.emit(local_showcase)
+		if callback.is_valid():
+			callback.call(true, local_showcase)
+		return
+	
+	if access_token.is_empty():
+		if callback.is_valid():
+			callback.call(false, {})
+		return
+	
+	var url = "%s/v1/me/showcase" % api_origin
+	var headers = [
+		"Authorization: Bearer %s" % access_token,
+		"Accept: application/json"
+	]
+	var http = HTTPRequest.new()
+	add_child(http)
+	http.request_completed.connect(func(result: int, response_code: int, response_headers: PackedStringArray, body: PackedByteArray):
+		http.queue_free()
+		if result == HTTPRequest.RESULT_SUCCESS and response_code == 200:
+			for h in response_headers:
+				if h.to_lower().begins_with("etag:"):
+					current_etag = h.substr(5).strip_edges()
+			var json = JSON.parse_string(body.get_string_from_utf8())
+			var val: Dictionary = {}
+			if typeof(json) == TYPE_DICTIONARY and json.has("data") and typeof(json["data"]) == TYPE_DICTIONARY:
+				val = json["data"]
+			local_showcase = val
+			local_state["showcase"] = val
+			_save_local_state()
+			showcase_loaded.emit(val)
+			if callback.is_valid():
+				callback.call(true, val)
+		else:
+			if callback.is_valid():
+				callback.call(false, {})
+	)
+	http.request(url, headers, HTTPClient.METHOD_GET)
+
+func put_showcase(value: Dictionary, callback: Callable = Callable()) -> void:
+	local_showcase = value
+	local_state["showcase"] = value
+	_save_local_state()
+	
+	if is_mock_mode:
+		print("[WeBumpAPI Mock] Persisted public showcase: %s" % str(value))
+		showcase_saved.emit(value)
+		if callback.is_valid():
+			callback.call(true, value)
+		return
+	
+	if access_token.is_empty():
+		if callback.is_valid():
+			callback.call(false, {})
+		return
+	
+	var url = "%s/v1/me/showcase" % api_origin
+	var headers = [
+		"Authorization: Bearer %s" % access_token,
+		"Content-Type: application/json",
+		"Accept: application/json",
+		"If-Match: %s" % current_etag
+	]
+	var payload = {
+		"value": value
+	}
+	var json_body = JSON.stringify(payload)
+	var http = HTTPRequest.new()
+	add_child(http)
+	http.request_completed.connect(func(result: int, response_code: int, response_headers: PackedStringArray, body: PackedByteArray):
+		http.queue_free()
+		if result == HTTPRequest.RESULT_SUCCESS and (response_code == 200 or response_code == 201):
+			for h in response_headers:
+				if h.to_lower().begins_with("etag:"):
+					current_etag = h.substr(5).strip_edges()
+			showcase_saved.emit(value)
+			if callback.is_valid():
+				callback.call(true, value)
+		else:
+			push_warning("[WeBumpAPI] put_showcase failed with code %d" % response_code)
+			if callback.is_valid():
+				callback.call(false, {})
+	)
+	http.request(url, headers, HTTPClient.METHOD_PUT, json_body)
+
+## Saves the player's highscore in seconds to the public weBump Capsule and Showcase.
+## Public weBump data shown on the app upon bumping or on profile shelf uses integer seconds.
+func save_public_highscore(total_time_seconds: float, best_lap_seconds: float = 0.0, callback: Callable = Callable()) -> Dictionary:
+	var highscore_sec: int = int(round(total_time_seconds))
+	var best_lap_sec: int = int(round(best_lap_seconds))
+	
+	var public_data: Dictionary = {
+		"highscore_seconds": highscore_sec,
+		"best_time_sec": highscore_sec,
+		"best_lap_sec": best_lap_sec
+	}
+	
+	print("[WeBumpAPI] ⏱️ Saving public weBump highscore: %d seconds (best lap: %d sec)" % [
+		highscore_sec, best_lap_sec
+	])
+	
+	put_capsule(public_data, callback)
+	put_showcase(public_data)
+	
+	return public_data
+
+func get_public_highscore_seconds() -> int:
+	if local_capsule.has("highscore_seconds"):
+		return int(local_capsule["highscore_seconds"])
+	if local_capsule.has("best_time_sec"):
+		return int(local_capsule["best_time_sec"])
+	if local_showcase.has("highscore_seconds"):
+		return int(local_showcase["highscore_seconds"])
+	var saved_save = local_state.get("racing_save", {})
+	if typeof(saved_save) == TYPE_DICTIONARY and saved_save.has("highscore_seconds"):
+		return int(saved_save["highscore_seconds"])
+	return -1
+
+

@@ -4,10 +4,10 @@
 [ext_resource type="PackedScene" uid="uid://cm8lq72w3ep8y" path="res://scenes/webump_connect_button.tscn" id="2_wbbtn"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_card"]
-content_margin_left = 36.0
-content_margin_top = 28.0
-content_margin_right = 36.0
-content_margin_bottom = 28.0
+content_margin_left = 30.0
+content_margin_top = 20.0
+content_margin_right = 30.0
+content_margin_bottom = 20.0
 bg_color = Color(0.07, 0.08, 0.12, 0.95)
 border_width_left = 1
 border_width_top = 1
@@ -133,6 +133,88 @@ grow_begin = 0.0
 grow_end = 0.0
 thickness = 1
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_chooser_card"]
+content_margin_left = 6.0
+content_margin_top = 6.0
+content_margin_right = 6.0
+content_margin_bottom = 6.0
+bg_color = Color(0.04, 0.05, 0.08, 0.8)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.18, 0.22, 0.32, 0.85)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_nav_normal"]
+content_margin_left = 12.0
+content_margin_top = 12.0
+content_margin_right = 12.0
+content_margin_bottom = 12.0
+bg_color = Color(0.1, 0.12, 0.18, 0.85)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.22, 0.28, 0.4, 0.85)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_nav_hover"]
+content_margin_left = 12.0
+content_margin_top = 12.0
+content_margin_right = 12.0
+content_margin_bottom = 12.0
+bg_color = Color(0.15, 0.19, 0.28, 0.95)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.0, 0.89, 1.0, 0.9)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+shadow_color = Color(0, 0.89, 1, 0.25)
+shadow_size = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_nav_pressed"]
+content_margin_left = 12.0
+content_margin_top = 12.0
+content_margin_right = 12.0
+content_margin_bottom = 12.0
+bg_color = Color(0.06, 0.08, 0.12, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.0, 0.89, 1.0, 1)
+corner_radius_top_left = 16
+corner_radius_top_right = 16
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 16
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_badge"]
+content_margin_left = 8.0
+content_margin_top = 2.0
+content_margin_right = 8.0
+content_margin_bottom = 2.0
+bg_color = Color(0.0, 0.89, 1.0, 0.15)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.0, 0.89, 1.0, 0.55)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
 [node name="TitleScreen" type="Control"]
 layout_mode = 3
 anchors_preset = 15
@@ -160,13 +242,13 @@ grow_horizontal = 2
 grow_vertical = 2
 
 [node name="CardPanel" type="PanelContainer" parent="CenterContainer"]
-custom_minimum_size = Vector2(430, 0)
+custom_minimum_size = Vector2(460, 0)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_card")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer/CardPanel"]
 layout_mode = 2
-theme_override_constants/separation = 16
+theme_override_constants/separation = 12
 alignment = 1
 
 [node name="TitleHeader" type="VBoxContainer" parent="CenterContainer/CardPanel/VBoxContainer"]
@@ -203,6 +285,136 @@ horizontal_alignment = 1
 [node name="HSeparator" type="HSeparator" parent="CenterContainer/CardPanel/VBoxContainer"]
 layout_mode = 2
 theme_override_styles/separator = SubResource("StyleBoxLine_divider")
+
+[node name="CarChooser" type="VBoxContainer" parent="CenterContainer/CardPanel/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="PreviewRow" type="HBoxContainer" parent="CenterContainer/CardPanel/VBoxContainer/CarChooser"]
+layout_mode = 2
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="PrevCarButton" type="Button" parent="CenterContainer/CardPanel/VBoxContainer/CarChooser/PreviewRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(52, 52)
+layout_mode = 2
+size_flags_vertical = 4
+focus_mode = 2
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 20
+theme_override_styles/focus = SubResource("StyleBoxFlat_nav_hover")
+theme_override_styles/hover = SubResource("StyleBoxFlat_nav_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_nav_pressed")
+theme_override_styles/normal = SubResource("StyleBoxFlat_nav_normal")
+text = "◀"
+
+[node name="PreviewCard" type="PanelContainer" parent="CenterContainer/CardPanel/VBoxContainer/CarChooser/PreviewRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(250, 140)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_chooser_card")
+
+[node name="SubViewportContainer" type="SubViewportContainer" parent="CenterContainer/CardPanel/VBoxContainer/CarChooser/PreviewRow/PreviewCard"]
+layout_mode = 2
+stretch = true
+
+[node name="PreviewViewport" type="SubViewport" parent="CenterContainer/CardPanel/VBoxContainer/CarChooser/PreviewRow/PreviewCard/SubViewportContainer"]
+unique_name_in_owner = true
+own_world_3d = true
+transparent_bg = true
+handle_input_locally = false
+size = Vector2i(250, 140)
+render_target_update_mode = 4
+
+[node name="PreviewCamera" type="Camera3D" parent="CenterContainer/CardPanel/VBoxContainer/CarChooser/PreviewRow/PreviewCard/SubViewportContainer/PreviewViewport"]
+transform = Transform3D(1, 0, 0, 0, 0.939693, 0.34202, 0, -0.34202, 0.939693, 0, 1.15, 2.75)
+fov = 34.0
+
+[node name="MainLight" type="DirectionalLight3D" parent="CenterContainer/CardPanel/VBoxContainer/CarChooser/PreviewRow/PreviewCard/SubViewportContainer/PreviewViewport"]
+transform = Transform3D(0.707107, -0.5, 0.5, 0, 0.707107, 0.707107, -0.707107, -0.5, 0.5, 2, 4, 2)
+light_energy = 1.3
+
+[node name="FillLight" type="DirectionalLight3D" parent="CenterContainer/CardPanel/VBoxContainer/CarChooser/PreviewRow/PreviewCard/SubViewportContainer/PreviewViewport"]
+transform = Transform3D(-0.707107, 0.5, -0.5, 0, 0.707107, 0.707107, 0.707107, 0.5, -0.5, -2, 2, -2)
+light_energy = 0.5
+
+[node name="Turntable" type="Node3D" parent="CenterContainer/CardPanel/VBoxContainer/CarChooser/PreviewRow/PreviewCard/SubViewportContainer/PreviewViewport"]
+unique_name_in_owner = true
+
+[node name="ModelPivot" type="Node3D" parent="CenterContainer/CardPanel/VBoxContainer/CarChooser/PreviewRow/PreviewCard/SubViewportContainer/PreviewViewport/Turntable"]
+unique_name_in_owner = true
+
+[node name="NextCarButton" type="Button" parent="CenterContainer/CardPanel/VBoxContainer/CarChooser/PreviewRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(52, 52)
+layout_mode = 2
+size_flags_vertical = 4
+focus_mode = 2
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 20
+theme_override_styles/focus = SubResource("StyleBoxFlat_nav_hover")
+theme_override_styles/hover = SubResource("StyleBoxFlat_nav_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_nav_pressed")
+theme_override_styles/normal = SubResource("StyleBoxFlat_nav_normal")
+text = "▶"
+
+[node name="CarInfoRow" type="HBoxContainer" parent="CenterContainer/CardPanel/VBoxContainer/CarChooser"]
+layout_mode = 2
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="CarNameLabel" type="Label" parent="CenterContainer/CardPanel/VBoxContainer/CarChooser/CarInfoRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 18
+text = "Classic Cab"
+
+[node name="CarCategoryBadge" type="Label" parent="CenterContainer/CardPanel/VBoxContainer/CarChooser/CarInfoRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0.89, 1, 1)
+theme_override_font_sizes/font_size = 10
+theme_override_styles/normal = SubResource("StyleBoxFlat_badge")
+text = "ALL-ROUNDER"
+
+[node name="CarDescLabel" type="Label" parent="CenterContainer/CardPanel/VBoxContainer/CarChooser"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.7, 0.8, 1)
+theme_override_font_sizes/font_size = 12
+text = "Balanced cornering and dependable top speed."
+horizontal_alignment = 1
+
+[node name="ColorRow" type="HBoxContainer" parent="CenterContainer/CardPanel/VBoxContainer/CarChooser"]
+layout_mode = 2
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="ColorSwatch" type="ColorRect" parent="CenterContainer/CardPanel/VBoxContainer/CarChooser/ColorRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(14, 14)
+layout_mode = 2
+size_flags_vertical = 4
+color = Color(1, 0.7, 0, 1)
+
+[node name="ColorStatusLabel" type="Label" parent="CenterContainer/CardPanel/VBoxContainer/CarChooser/ColorRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.75, 0.85, 1)
+theme_override_font_sizes/font_size = 11
+text = "Default Color • Connect to sync"
+
+[node name="PaginationContainer" type="HBoxContainer" parent="CenterContainer/CardPanel/VBoxContainer/CarChooser"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 6
+alignment = 1
 
 [node name="ButtonContainer" type="VBoxContainer" parent="CenterContainer/CardPanel/VBoxContainer"]
 unique_name_in_owner = true

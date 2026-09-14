@@ -92,7 +92,10 @@ func _ready() -> void:
 	# 5. Pre-warm and pre-allocate confetti effects to prevent first-time stutter
 	_init_prewarmed_effects()
 	
-	# 6. Acquire track path curve
+	# 6. Overhead driver nameplate
+	setup_nameplate(driver_name)
+	
+	# 7. Acquire track path curve
 	if track_path != null:
 		if track_path is TrackPath and (track_path.curve == null or track_path.curve.point_count == 0):
 			track_path.build_track_curve()

@@ -13,6 +13,7 @@
 [ext_resource type="Script" path="res://scripts/track_path.gd" id="15_path"]
 [ext_resource type="PackedScene" uid="uid://be04lqgv6k4b8" path="res://scenes/ai_vehicle.tscn" id="16_ai1"]
 [ext_resource type="PackedScene" uid="uid://dxsrpn1mmw5jb" path="res://scenes/ai_vehicle_purple.tscn" id="17_ai2"]
+[ext_resource type="Script" path="res://scripts/ghost_recorder.gd" id="18_ghost"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_ya4ey"]
 size = Vector3(60, 0, 60)
@@ -125,6 +126,10 @@ ghost_tint = Color(0.92, 0.82, 1, 1)
 script = ExtResource("12_race")
 player_vehicle = NodePath("../Vehicle")
 view_camera = NodePath("../View")
+
+[node name="GhostRecorder" type="Node" parent="RaceManager" node_paths=PackedStringArray("race_manager")]
+script = ExtResource("18_ghost")
+race_manager = NodePath("..")
 
 [node name="RaceHUD" parent="." node_paths=PackedStringArray("race_manager", "view_camera") instance=ExtResource("13_hud")]
 race_manager = NodePath("../RaceManager")
