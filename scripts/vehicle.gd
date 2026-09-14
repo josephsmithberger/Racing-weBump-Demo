@@ -58,31 +58,22 @@ var controls_enabled: bool = true
 func _ready() -> void:
 	# If this is the player vehicle (not an AI subclass)
 	if not (self is AIVehicle):
-		var selected_id = "truck_yellow"
+		var selected_id = CarPresets.get_selected_car()
 		var api = _get_api()
 		if api:
-			selected_id = api.get_selected_car_body()
 			api.auth_succeeded.connect(func(_profile: Dictionary, _is_mock: bool):
 				var col = api.get_player_theme_color()
 				apply_body_color(col)
 				setup_nameplate(api.get_player_display_name())
 			)
 			api.session_disconnected.connect(func():
-				var preset = CarPresets.get_preset_by_id(selected_id)
+				var preset = CarPresets.get_preset_by_id(current_preset_id)
 				apply_body_color(preset.get("default_color", Color(1.0, 0.70, 0.0)))
 				setup_nameplate("Player")
 			)
 			api.car_body_changed.connect(func(new_body: String):
 				apply_car_preset(new_body)
 			)
-		else:
-			# Fallback if API node is not in tree: read directly from local storage
-			if FileAccess.file_exists("user://webump_state.json"):
-				var f = FileAccess.open("user://webump_state.json", FileAccess.READ)
-				if f:
-					var parsed = JSON.parse_string(f.get_as_text())
-					if typeof(parsed) == TYPE_DICTIONARY and parsed.has("selected_car_body"):
-						selected_id = str(parsed["selected_car_body"])
 		
 		print("[Vehicle] Applying player car preset: '%s'" % selected_id)
 		apply_car_preset(selected_id)
@@ -93,12 +84,7 @@ func _ready() -> void:
 		setup_nameplate(name_str)
 
 func _get_api() -> Node:
-	if is_inside_tree() and get_tree() and get_tree().root and get_tree().root.has_node("WeBumpAPI"):
-		return get_tree().root.get_node("WeBumpAPI")
-	var main_loop = Engine.get_main_loop() as SceneTree
-	if main_loop and main_loop.root and main_loop.root.has_node("WeBumpAPI"):
-		return main_loop.root.get_node("WeBumpAPI")
-	return null
+	return CarPresets.get_api()
 
 # Public Functions
 
@@ -160,10 +146,9 @@ func apply_car_preset(car_id: String) -> void:
 	apply_body_color(col)
 
 func _get_active_color(preset: Dictionary = {}) -> Color:
-	if is_inside_tree() and get_tree().root.has_node("WeBumpAPI"):
-		var api = get_tree().root.get_node("WeBumpAPI")
-		if api.is_authenticated:
-			return api.get_player_theme_color()
+	var api = _get_api()
+	if api and api.is_authenticated:
+		return api.get_player_theme_color()
 	if preset.has("default_color"):
 		return preset["default_color"]
 	return Color(1.0, 0.70, 0.0)

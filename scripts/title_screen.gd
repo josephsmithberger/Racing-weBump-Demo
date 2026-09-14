@@ -63,12 +63,7 @@ func _ready() -> void:
 		connect_button.connection_changed.connect(_on_connection_changed)
 
 func _get_api() -> Node:
-	if is_inside_tree() and get_tree() and get_tree().root and get_tree().root.has_node("WeBumpAPI"):
-		return get_tree().root.get_node("WeBumpAPI")
-	var main_loop = Engine.get_main_loop() as SceneTree
-	if main_loop and main_loop.root and main_loop.root.has_node("WeBumpAPI"):
-		return main_loop.root.get_node("WeBumpAPI")
-	return null
+	return CarPresets.get_api()
 
 func _setup_mode_display() -> void:
 	var is_mock: bool = false
@@ -103,10 +98,7 @@ func _setup_mode_display() -> void:
 # ===================================================================
 func _setup_car_chooser() -> void:
 	# 1. Determine starting car index from saved state or default
-	var initial_id: String = "truck_yellow"
-	var api = _get_api()
-	if api:
-		initial_id = api.get_selected_car_body()
+	var initial_id: String = CarPresets.get_selected_car()
 	_current_car_index = CarPresets.get_preset_index(initial_id)
 	
 	# 2. Connect large touch navigation buttons with sound
@@ -229,10 +221,8 @@ func _update_car_display(animate: bool) -> void:
 	# 1. Update text metadata (clean vehicle name, no blurbs)
 	car_name_label.text = preset["name"]
 	
-	# 2. Update WeBumpAPI selection
-	var api = _get_api()
-	if api:
-		api.set_selected_car_body(car_id)
+	# 2. Persist selection immediately across memory, file, and WeBumpAPI
+	CarPresets.set_selected_car(car_id)
 	
 	# 3. Swap 3D preview model
 	_load_preview_model(preset, animate)
@@ -395,10 +385,8 @@ func _on_play_pressed() -> void:
 	# Guarantee selected car preset is committed before scene transition
 	var preset = CarPresets.PRESETS[_current_car_index]
 	var car_id: String = preset["id"]
-	var api = _get_api()
-	if api:
-		api.set_selected_car_body(car_id)
-		print("[TitleScreen] Car '%s' confirmed and saved for main race." % car_id)
+	CarPresets.set_selected_car(car_id)
+	print("[TitleScreen] Car '%s' confirmed and saved for main race." % car_id)
 
 	_is_loading = true
 	button_container.visible = false

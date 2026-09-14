@@ -110,7 +110,7 @@ func _on_race_finished(total_time: float, lap_times: Array, best_lap_time: float
 	# 1. Enforce payload budget decimation
 	_decimate_samples_if_needed()
 	
-	var car_body_id = "truck_yellow"
+	var car_body_id = CarPresets.get_selected_car()
 	var display_name = "Player"
 	var theme_color_hex = "#FFB300"
 	var total_time_ms = int(total_time * 1000.0)
@@ -179,9 +179,4 @@ func _on_race_finished(total_time: float, lap_times: Array, best_lap_time: float
 	ghost_saved.emit(ghost_payload, is_new_record)
 
 func _get_api() -> Node:
-	if is_inside_tree() and get_tree() and get_tree().root and get_tree().root.has_node("WeBumpAPI"):
-		return get_tree().root.get_node("WeBumpAPI")
-	var main_loop = Engine.get_main_loop() as SceneTree
-	if main_loop and main_loop.root and main_loop.root.has_node("WeBumpAPI"):
-		return main_loop.root.get_node("WeBumpAPI")
-	return null
+	return CarPresets.get_api()

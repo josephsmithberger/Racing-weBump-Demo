@@ -58,9 +58,7 @@ func _connect_to_api_singleton() -> void:
 			_on_api_auth_succeeded(api.current_player_profile, api.is_mock_mode)
 
 func _get_api() -> Node:
-	if has_node("/root/WeBumpAPI"):
-		return get_node("/root/WeBumpAPI")
-	return null
+	return CarPresets.get_api()
 
 func _setup_styles() -> void:
 	_style_normal = StyleBoxFlat.new()

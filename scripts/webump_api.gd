@@ -41,6 +41,7 @@ var _current_state: String = ""
 var _http_request: HTTPRequest
 
 func _ready() -> void:
+	selected_car_body = CarPresets.get_selected_car()
 	_load_config()
 	_load_local_state()
 	
@@ -259,15 +260,20 @@ func disconnect_player() -> void:
 # -------------------------------------------------------------------
 func _load_local_state() -> void:
 	if not FileAccess.file_exists(SAVE_STATE_PATH):
+		selected_car_body = CarPresets.get_selected_car()
 		return
 	var file = FileAccess.open(SAVE_STATE_PATH, FileAccess.READ)
 	if not file:
+		selected_car_body = CarPresets.get_selected_car()
 		return
 	var parsed = JSON.parse_string(file.get_as_text())
 	if typeof(parsed) == TYPE_DICTIONARY:
 		local_state = parsed
 		if local_state.has("selected_car_body"):
 			selected_car_body = str(local_state["selected_car_body"])
+			CarPresets._active_car_id = selected_car_body
+		else:
+			selected_car_body = CarPresets.get_selected_car()
 		if local_state.has("capsule") and typeof(local_state["capsule"]) == TYPE_DICTIONARY:
 			local_capsule = local_state["capsule"]
 		if local_state.has("showcase") and typeof(local_state["showcase"]) == TYPE_DICTIONARY:
@@ -281,11 +287,11 @@ func _save_local_state() -> void:
 		file.store_string(JSON.stringify(local_state, "  "))
 
 func set_selected_car_body(body_id: String) -> void:
-	if selected_car_body != body_id:
-		selected_car_body = body_id
-		local_state["selected_car_body"] = body_id
-		_save_local_state()
-		car_body_changed.emit(body_id)
+	selected_car_body = body_id
+	local_state["selected_car_body"] = body_id
+	_save_local_state()
+	CarPresets._active_car_id = body_id
+	car_body_changed.emit(body_id)
 
 func get_selected_car_body() -> String:
 	return selected_car_body

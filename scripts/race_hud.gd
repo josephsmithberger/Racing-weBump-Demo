@@ -306,13 +306,13 @@ func _show_results(total_time: float, lap_times: Array, best_lap_time: float) ->
 	result_best_lap.text = "BEST LAP: " + format_time(best_lap_time)
 	
 	if ghost_sync_label != null:
-		var car_name = "Vehicle"
+		var car_id = CarPresets.get_selected_car()
+		var preset = CarPresets.get_preset_by_id(car_id)
+		var car_name = preset.get("name", "Vehicle")
 		var is_new_record = true
 		var previous_best_ms = -1
-		if is_inside_tree() and get_tree().root.has_node("WeBumpAPI"):
-			var api = get_tree().root.get_node("WeBumpAPI")
-			var preset = CarPresets.get_preset_by_id(api.get_selected_car_body())
-			car_name = preset.get("name", "Vehicle")
+		var api = CarPresets.get_api()
+		if api:
 			var saved_save = api.local_state.get("racing_save", {})
 			if typeof(saved_save) == TYPE_DICTIONARY:
 				previous_best_ms = int(saved_save.get("best_3lap_ms", -1))
