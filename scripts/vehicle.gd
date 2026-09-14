@@ -41,10 +41,15 @@ var linear_velocity: Vector3
 var prev_position: Vector3
 
 var calculated_lean: float
+var controls_enabled: bool = true
 
 # Public Functions
 
 func get_vehicle_position() -> Vector3: return vehicle_model.global_position
+func set_controls_enabled(enabled: bool) -> void:
+	controls_enabled = enabled
+	if not enabled:
+		input = Vector3.ZERO
 
 # Functions
 
@@ -112,7 +117,10 @@ func _physics_process(delta):
 
 func handle_input(delta):
 
-	if raycast.is_colliding():
+	if not controls_enabled:
+		input = Vector3.ZERO
+		linear_speed = lerp(linear_speed, 0.0, delta * 4)
+	elif raycast.is_colliding():
 		input.x = Input.get_axis("left", "right")
 		input.z = Input.get_axis("back", "forward")
 

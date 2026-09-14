@@ -1,0 +1,567 @@
+[gd_scene load_steps=8 format=3 uid="uid://c3f5g8p7k4m1n"]
+
+[ext_resource type="Script" path="res://scripts/race_hud.gd" id="1_hud"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_lap"]
+content_margin_left = 22.0
+content_margin_top = 8.0
+content_margin_right = 26.0
+content_margin_bottom = 8.0
+bg_color = Color(0.06, 0.07, 0.11, 0.95)
+border_width_left = 6
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 4
+border_color = Color(0, 0.92, 1, 1)
+corner_radius_top_left = 2
+corner_radius_bottom_right = 16
+shadow_color = Color(0, 0, 0, 0.6)
+shadow_size = 8
+shadow_offset = Vector2(3, 5)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_timer"]
+content_margin_left = 26.0
+content_margin_top = 8.0
+content_margin_right = 22.0
+content_margin_bottom = 8.0
+bg_color = Color(0.06, 0.07, 0.11, 0.95)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 6
+border_width_bottom = 4
+border_color = Color(1, 0.72, 0, 1)
+corner_radius_top_right = 2
+corner_radius_bottom_left = 16
+shadow_color = Color(0, 0, 0, 0.6)
+shadow_size = 8
+shadow_offset = Vector2(-3, 5)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_split"]
+content_margin_left = 18.0
+content_margin_top = 6.0
+content_margin_right = 18.0
+content_margin_bottom = 6.0
+bg_color = Color(0.1, 0.12, 0.18, 0.95)
+border_width_left = 4
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 2
+border_color = Color(1, 0.9, 0, 1)
+corner_radius_top_left = 2
+corner_radius_bottom_right = 10
+shadow_color = Color(0, 0, 0, 0.5)
+shadow_size = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_card"]
+content_margin_left = 40.0
+content_margin_top = 32.0
+content_margin_right = 40.0
+content_margin_bottom = 32.0
+bg_color = Color(0.08, 0.09, 0.14, 0.98)
+border_width_left = 5
+border_width_top = 5
+border_width_right = 5
+border_width_bottom = 5
+border_color = Color(0, 0.92, 1, 1)
+corner_radius_top_left = 16
+corner_radius_top_right = 4
+corner_radius_bottom_right = 16
+corner_radius_bottom_left = 4
+shadow_color = Color(0, 0, 0, 0.75)
+shadow_size = 20
+shadow_offset = Vector2(0, 10)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_btn_normal"]
+content_margin_left = 24.0
+content_margin_top = 12.0
+content_margin_right = 24.0
+content_margin_bottom = 12.0
+bg_color = Color(0.12, 0.14, 0.22, 1)
+border_width_left = 3
+border_width_top = 2
+border_width_right = 3
+border_width_bottom = 4
+border_color = Color(0.35, 0.45, 0.7, 1)
+corner_radius_top_left = 8
+corner_radius_bottom_right = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_btn_hover"]
+content_margin_left = 24.0
+content_margin_top = 12.0
+content_margin_right = 24.0
+content_margin_bottom = 12.0
+bg_color = Color(0.18, 0.25, 0.42, 1)
+border_width_left = 4
+border_width_top = 3
+border_width_right = 4
+border_width_bottom = 5
+border_color = Color(0, 0.92, 1, 1)
+corner_radius_top_left = 8
+corner_radius_bottom_right = 8
+shadow_color = Color(0, 0.92, 1, 0.3)
+shadow_size = 8
+
+[node name="RaceHUD" type="CanvasLayer"]
+process_mode = 3
+script = ExtResource("1_hud")
+
+[node name="HUDControl" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="TopLeftMargin" type="MarginContainer" parent="HUDControl"]
+layout_mode = 1
+offset_right = 220.0
+offset_bottom = 80.0
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 18
+
+[node name="LapBadge" type="PanelContainer" parent="HUDControl/TopLeftMargin"]
+unique_name_in_owner = true
+layout_mode = 2
+rotation = -0.0523599
+theme_override_styles/panel = SubResource("StyleBoxFlat_lap")
+
+[node name="LapLabel" type="Label" parent="HUDControl/TopLeftMargin/LapBadge"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.9)
+theme_override_constants/shadow_offset_x = 3
+theme_override_constants/shadow_offset_y = 4
+theme_override_constants/outline_size = 10
+theme_override_font_sizes/font_size = 30
+text = "LAP 1/3"
+horizontal_alignment = 1
+
+[node name="TopRightMargin" type="MarginContainer" parent="HUDControl"]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -280.0
+offset_bottom = 150.0
+grow_horizontal = 0
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 24
+
+[node name="VBox" type="VBoxContainer" parent="HUDControl/TopRightMargin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="TimerBadge" type="PanelContainer" parent="HUDControl/TopRightMargin/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+rotation = 0.0349066
+theme_override_styles/panel = SubResource("StyleBoxFlat_timer")
+
+[node name="TimerContent" type="VBoxContainer" parent="HUDControl/TopRightMargin/VBox/TimerBadge"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="TimerLabel" type="Label" parent="HUDControl/TopRightMargin/VBox/TimerBadge/TimerContent"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.9)
+theme_override_constants/shadow_offset_x = 3
+theme_override_constants/shadow_offset_y = 4
+theme_override_constants/outline_size = 10
+theme_override_font_sizes/font_size = 36
+text = "00:00.00"
+horizontal_alignment = 2
+
+[node name="BestLabel" type="Label" parent="HUDControl/TopRightMargin/VBox/TimerBadge/TimerContent"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.9, 1, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 16
+text = "BEST: --:--.--"
+horizontal_alignment = 2
+
+[node name="SplitToast" type="PanelContainer" parent="HUDControl/TopRightMargin/VBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_split")
+
+[node name="SplitLabel" type="Label" parent="HUDControl/TopRightMargin/VBox/SplitToast"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 18
+text = "LAP 1: 00:32.41 [BEST!]"
+horizontal_alignment = 1
+
+[node name="CountdownContainer" type="Control" parent="HUDControl"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="CountdownAngledWrapper" type="Control" parent="HUDControl/CountdownContainer"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+rotation = -0.0872665
+pivot_offset = Vector2(640, 360)
+mouse_filter = 2
+
+[node name="CountdownBanner" type="ColorRect" parent="HUDControl/CountdownContainer/CountdownAngledWrapper"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 14
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = -200.0
+offset_top = -100.0
+offset_right = 200.0
+offset_bottom = 100.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.06, 0.07, 0.11, 0.85)
+
+[node name="TopStripe" type="ColorRect" parent="HUDControl/CountdownContainer/CountdownAngledWrapper/CountdownBanner"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 6.0
+grow_horizontal = 2
+color = Color(1, 1, 1, 0.8)
+
+[node name="BottomStripe" type="ColorRect" parent="HUDControl/CountdownContainer/CountdownAngledWrapper/CountdownBanner"]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -6.0
+grow_horizontal = 2
+grow_vertical = 0
+color = Color(1, 1, 1, 0.8)
+
+[node name="CountdownLabel" type="Label" parent="HUDControl/CountdownContainer/CountdownAngledWrapper"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -300.0
+offset_top = -130.0
+offset_right = 300.0
+offset_bottom = 130.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.98)
+theme_override_constants/shadow_offset_x = 6
+theme_override_constants/shadow_offset_y = 8
+theme_override_constants/outline_size = 22
+theme_override_font_sizes/font_size = 150
+text = "3"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="FinalLapBanner" type="Control" parent="HUDControl"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="FinalLapAngledWrapper" type="Control" parent="HUDControl/FinalLapBanner"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+rotation = -0.0698132
+pivot_offset = Vector2(640, 360)
+mouse_filter = 2
+
+[node name="BG" type="ColorRect" parent="HUDControl/FinalLapBanner/FinalLapAngledWrapper"]
+layout_mode = 1
+anchors_preset = 14
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = -200.0
+offset_top = -80.0
+offset_right = 200.0
+offset_bottom = 80.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.8, 0.06, 0.12, 0.92)
+
+[node name="TopStripe" type="ColorRect" parent="HUDControl/FinalLapBanner/FinalLapAngledWrapper/BG"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 6.0
+grow_horizontal = 2
+color = Color(1, 0.9, 0, 1)
+
+[node name="BottomStripe" type="ColorRect" parent="HUDControl/FinalLapBanner/FinalLapAngledWrapper/BG"]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -6.0
+grow_horizontal = 2
+grow_vertical = 0
+color = Color(1, 0.9, 0, 1)
+
+[node name="FinalLapLabel" type="Label" parent="HUDControl/FinalLapBanner/FinalLapAngledWrapper"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -500.0
+offset_top = -70.0
+offset_right = 500.0
+offset_bottom = 70.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 0.92, 0.1, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.95)
+theme_override_constants/shadow_offset_x = 5
+theme_override_constants/shadow_offset_y = 6
+theme_override_constants/outline_size = 16
+theme_override_font_sizes/font_size = 76
+text = "★ FINAL LAP! ★"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="FinishBanner" type="Control" parent="HUDControl"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="FinishAngledWrapper" type="Control" parent="HUDControl/FinishBanner"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+rotation = -0.0872665
+pivot_offset = Vector2(640, 360)
+mouse_filter = 2
+
+[node name="BG" type="ColorRect" parent="HUDControl/FinishBanner/FinishAngledWrapper"]
+layout_mode = 1
+anchors_preset = 14
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = -300.0
+offset_top = -140.0
+offset_right = 300.0
+offset_bottom = 140.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.05, 0.06, 0.1, 0.92)
+
+[node name="TopStripe" type="ColorRect" parent="HUDControl/FinishBanner/FinishAngledWrapper/BG"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 8.0
+grow_horizontal = 2
+color = Color(1, 0.85, 0, 1)
+
+[node name="BottomStripe" type="ColorRect" parent="HUDControl/FinishBanner/FinishAngledWrapper/BG"]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -8.0
+grow_horizontal = 2
+grow_vertical = 0
+color = Color(1, 0.85, 0, 1)
+
+[node name="FinishLabel" type="Label" parent="HUDControl/FinishBanner/FinishAngledWrapper"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -450.0
+offset_top = -130.0
+offset_right = 450.0
+offset_bottom = 130.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 0.88, 0.1, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.98)
+theme_override_constants/shadow_offset_x = 6
+theme_override_constants/shadow_offset_y = 9
+theme_override_constants/outline_size = 24
+theme_override_font_sizes/font_size = 140
+text = "FINISH!"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="FlashRect" type="ColorRect" parent="HUDControl"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(1, 1, 1, 1)
+
+[node name="ResultsScreen" type="Control" parent="HUDControl"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Dimmer" type="ColorRect" parent="HUDControl/ResultsScreen"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.03, 0.04, 0.07, 0.8)
+
+[node name="Center" type="CenterContainer" parent="HUDControl/ResultsScreen"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="ResultsCard" type="PanelContainer" parent="HUDControl/ResultsScreen/Center"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(500, 380)
+layout_mode = 2
+rotation = -0.0174533
+theme_override_styles/panel = SubResource("StyleBoxFlat_card")
+
+[node name="VBox" type="VBoxContainer" parent="HUDControl/ResultsScreen/Center/ResultsCard"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Title" type="Label" parent="HUDControl/ResultsScreen/Center/ResultsCard/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.9, 0.1, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.9)
+theme_override_constants/shadow_offset_x = 3
+theme_override_constants/shadow_offset_y = 4
+theme_override_constants/outline_size = 10
+theme_override_font_sizes/font_size = 36
+text = "★ RACE COMPLETE ★"
+horizontal_alignment = 1
+
+[node name="ResultTotalTime" type="Label" parent="HUDControl/ResultsScreen/Center/ResultsCard/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0.92, 1, 1)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 26
+text = "TOTAL TIME: 00:00.00"
+horizontal_alignment = 1
+
+[node name="HSeparator" type="HSeparator" parent="HUDControl/ResultsScreen/Center/ResultsCard/VBox"]
+layout_mode = 2
+
+[node name="LapsBox" type="VBoxContainer" parent="HUDControl/ResultsScreen/Center/ResultsCard/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ResultLap1" type="Label" parent="HUDControl/ResultsScreen/Center/ResultsCard/VBox/LapsBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 22
+text = "LAP 1:  --:--.--"
+
+[node name="ResultLap2" type="Label" parent="HUDControl/ResultsScreen/Center/ResultsCard/VBox/LapsBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 22
+text = "LAP 2:  --:--.--"
+
+[node name="ResultLap3" type="Label" parent="HUDControl/ResultsScreen/Center/ResultsCard/VBox/LapsBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 22
+text = "LAP 3:  --:--.--"
+
+[node name="ResultBestLap" type="Label" parent="HUDControl/ResultsScreen/Center/ResultsCard/VBox/LapsBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.2, 1, 0.5, 1)
+theme_override_constants/outline_size = 5
+theme_override_font_sizes/font_size = 22
+text = "BEST LAP: --:--.--"
+
+[node name="HSeparator2" type="HSeparator" parent="HUDControl/ResultsScreen/Center/ResultsCard/VBox"]
+layout_mode = 2
+
+[node name="Buttons" type="HBoxContainer" parent="HUDControl/ResultsScreen/Center/ResultsCard/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 24
+alignment = 1
+
+[node name="RetryButton" type="Button" parent="HUDControl/ResultsScreen/Center/ResultsCard/VBox/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+theme_override_styles/normal = SubResource("StyleBoxFlat_btn_normal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_btn_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_btn_hover")
+text = "RETRY RACE"
+
+[node name="TitleButton" type="Button" parent="HUDControl/ResultsScreen/Center/ResultsCard/VBox/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+theme_override_styles/normal = SubResource("StyleBoxFlat_btn_normal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_btn_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_btn_hover")
+text = "TITLE SCREEN"
