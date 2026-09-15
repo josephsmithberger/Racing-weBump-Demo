@@ -49,7 +49,7 @@ func _ready() -> void:
 	
 	# Offline races are immediately available
 	play_button.disabled = false
-	play_button.text = "START RACE ▶▶"
+	play_button.text = "START RACE"
 	
 	_setup_mode_display()
 	_setup_car_chooser()
@@ -88,9 +88,9 @@ func _setup_mode_display() -> void:
 	if is_mock:
 		mode_banner.visible = true
 		if is_editor:
-			mode_label.text = "🛠️ Mock Mode (Editor) — Simulated API"
+			mode_label.text = "Mock Mode (Editor) - simulated API"
 		else:
-			mode_label.text = "🛠️ Mock Mode — Simulated API"
+			mode_label.text = "Mock Mode - simulated API"
 		mode_label.add_theme_color_override("font_color", Color(1.0, 0.839, 0.0, 0.9))
 		hint_label.text = "Connect to weBump to sync your profile & custom colors"
 		hint_label.add_theme_color_override("font_color", Color(0.55, 0.62, 0.75, 1.0))
@@ -309,7 +309,7 @@ func _update_color_swatch() -> void:
 			hex_str = api.get_player_theme_color_hex()
 	
 	if is_auth:
-		color_status_label.text = "🎨 weBump Color: %s" % hex_str
+		color_status_label.text = "weBump color: %s" % hex_str
 		color_status_label.add_theme_color_override("font_color", Color(0.165, 0.690, 0.388, 1.0)) # weBump Brand Green
 	else:
 		color_status_label.text = "Default Paint • Connect to sync"
@@ -377,7 +377,7 @@ func _on_connection_changed(connected: bool, profile: Dictionary) -> void:
 		if _audio:
 			_audio.play_connect_success()
 		play_button.disabled = false
-		play_button.text = "START RACE ▶▶"
+		play_button.text = "START RACE"
 		var p_name = profile.get("display_name", "Player")
 		var is_mock = profile.get("is_mock", false)
 		
@@ -398,7 +398,7 @@ func _on_connection_changed(connected: bool, profile: Dictionary) -> void:
 	else:
 		visitors_button.visible = false
 		play_button.disabled = false
-		play_button.text = "START RACE ▶▶"
+		play_button.text = "START RACE"
 		_setup_mode_display()
 
 # ===================================================================

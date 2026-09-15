@@ -55,7 +55,6 @@ var last_write_status := 0
 ## Session-only authorized cards from the redeemed visitor handoff.
 var visitor_cards: Array = []
 
-var _config_mock_mode := false
 var _current_verifier := ""
 var _current_state := ""
 var _handoff_pkce: Dictionary = {}
@@ -69,8 +68,9 @@ func _ready() -> void:
 	selected_car_body = CarPresets.get_selected_car()
 	_load_config()
 	_load_local_state()
+	# Mock mode exists only inside the editor; every export talks to the real API.
 	is_editor_mode = OS.has_feature("editor")
-	is_mock_mode = is_editor_mode or _config_mock_mode
+	is_mock_mode = is_editor_mode
 	if OS.has_feature("web"):
 		# The export shell (web/shell.html) relays approval results from the popup here.
 		_web_callback = JavaScriptBridge.create_callback(_on_web_callback)
@@ -85,7 +85,6 @@ func _load_config() -> void:
 		api_origin = parsed.get("api_origin", api_origin)
 		redirect_uri = parsed.get("redirect_uri", redirect_uri)
 		scopes = parsed.get("scopes", scopes)
-		_config_mock_mode = parsed.get("mock_mode", false)
 
 func get_mode_description() -> String:
 	if is_mock_mode:

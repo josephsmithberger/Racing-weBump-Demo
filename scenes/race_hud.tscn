@@ -525,7 +525,7 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0, 0.89, 1, 1)
 theme_override_font_sizes/font_size = 13
-text = "☁️ Ghost telemetry & car body saved to weBump"
+text = ""
 horizontal_alignment = 1
 
 [node name="ShareLabel" type="Label" parent="HUDControl/ResultsScreen/Center/ResultsCard/VBox"]

@@ -10,6 +10,5 @@
     "game.capsule",
     "game.showcase",
     "game.shared"
-  ],
-  "mock_mode": false
+  ]
 }

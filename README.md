@@ -55,8 +55,9 @@ contract, the web callback relay, and revision handling in detail.
 ## Run it locally
 
 Open `project.godot` in **Godot 4.7** and press **F5**. No account is needed:
-the editor runs in **mock mode**, which simulates a connected profile and races
-you against Maya's synthetic ghost plus Liam and Sam.
+inside the editor the API runs in **mock mode**, which simulates a connected
+profile and races you against Maya's synthetic ghost plus Liam and Sam. Every
+export talks to the real API.
 
 | Controls | Action |
 | --- | --- |
