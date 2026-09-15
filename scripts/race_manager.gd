@@ -134,7 +134,9 @@ func _spawn_rivals() -> void:
 	var path := get_node("../TrackPath") as TrackPath
 	var api := CarPresets.get_api()
 	var cards: Array = api.visitor_cards if api else []
-	if cards.is_empty() and (api == null or api.is_mock_mode or not api.is_authenticated):
+	# Synthetic cards exist only for the editor's mock mode. A real session races the
+	# player's actual bumps (ghosts first) and fills the remaining slots with practice AI.
+	if cards.is_empty() and (api == null or api.is_mock_mode):
 		cards = RivalRoster.demo_cards(path.curve)
 	var roster := RivalRoster.from_visitors(cards, max_laps)
 	# Connected sessions with no eligible bumps still have generic practice opponents.

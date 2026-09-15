@@ -47,8 +47,6 @@ func _ready() -> void:
 	button_container.visible = true
 	hint_label.visible = true
 	
-	# Offline races are immediately available
-	play_button.disabled = false
 	play_button.text = "START RACE"
 	
 	_setup_mode_display()
@@ -84,7 +82,9 @@ func _setup_mode_display() -> void:
 	else:
 		is_mock = is_editor
 	
-	# Only display a caption if currently in mock mode
+	# Outside the editor a race needs a connected player: rivals come from real bumps.
+	var connected: bool = api != null and api.is_authenticated
+	play_button.disabled = not (is_mock or connected)
 	if is_mock:
 		mode_banner.visible = true
 		if is_editor:
@@ -93,11 +93,10 @@ func _setup_mode_display() -> void:
 			mode_label.text = "Mock Mode - simulated API"
 		mode_label.add_theme_color_override("font_color", Color(1.0, 0.839, 0.0, 0.9))
 		hint_label.text = "Connect to weBump to sync your profile & custom colors"
-		hint_label.add_theme_color_override("font_color", Color(0.55, 0.62, 0.75, 1.0))
 	else:
 		mode_banner.visible = false
-		hint_label.text = "Connect to weBump to sync your profile & custom colors"
-		hint_label.add_theme_color_override("font_color", Color(0.55, 0.62, 0.75, 1.0))
+		hint_label.text = "Connect with weBump to race the people you bump"
+	hint_label.add_theme_color_override("font_color", Color(0.55, 0.62, 0.75, 1.0))
 
 # ===================================================================
 # SAKURAI ARCADE CAR CHOOSER
@@ -397,7 +396,6 @@ func _on_connection_changed(connected: bool, profile: Dictionary) -> void:
 		tween.tween_property(play_button, "scale", Vector2(1.0, 1.0), 0.12).set_trans(Tween.TRANS_SINE)
 	else:
 		visitors_button.visible = false
-		play_button.disabled = false
 		play_button.text = "START RACE"
 		_setup_mode_display()
 

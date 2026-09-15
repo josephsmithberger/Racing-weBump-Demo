@@ -65,8 +65,11 @@ export talks to the real API.
 | S / Down | Brake / reverse |
 | A, D / Left, Right | Steer |
 
-Three laps with ordered checkpoints. Three rival slots are filled from visitor
-cards (valid ghosts first), then practice AI. Ghost times are **Recorded**,
+Three laps with ordered checkpoints. Outside the editor you must connect with
+weBump before racing: the three rival slots are filled from your real bumps
+(valid ghosts first, so one shared replay replaces one practice driver), and
+the rest are practice AI. The synthetic Maya/Liam/Sam cards exist only in the
+editor's mock mode. Ghost times are **Recorded**,
 finished AI times are **Finished**, unfinished AI times are projected from
 observed pace. Personal bests and complete replays (≤ 3 minutes, ≤ 256 frames,
 ≤ 12 KB) save locally first; connected saves sync to weBump afterwards.

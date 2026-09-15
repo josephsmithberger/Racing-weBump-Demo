@@ -135,7 +135,9 @@ func _start_live_oauth_flow() -> void:
 	var pkce := _generate_pkce_pair()
 	_current_verifier = pkce.verifier
 	_current_state = pkce.state
-	var auth_url := "%s/oauth/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=%s&code_challenge=%s&code_challenge_method=S256&state=%s" % [
+	# display=popup: the approval page waits for the phone and hands the callback back
+	# to the popup this game opened. Native apps omit it.
+	var auth_url := "%s/oauth/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=%s&code_challenge=%s&code_challenge_method=S256&state=%s&display=popup" % [
 		api_origin, client_id.uri_encode(), redirect_uri.uri_encode(), " ".join(scopes).uri_encode(), pkce.challenge, pkce.state]
 	_open_approval(auth_url)
 
@@ -516,7 +518,7 @@ func begin_visitor_handoff() -> Dictionary:
 	return await _request_json("/v1/me/visitor-handoff", HTTPClient.METHOD_POST, {
 		"action": "begin", "client_id": client_id, "redirect_uri": redirect_uri,
 		"response_type": "code", "state": _handoff_pkce.state, "scope": "visitors.receive",
-		"code_challenge": _handoff_pkce.challenge, "code_challenge_method": "S256"})
+		"code_challenge": _handoff_pkce.challenge, "code_challenge_method": "S256", "display": "popup"})
 
 func redeem_visitor_handoff(code: String, returned_state: String) -> bool:
 	if _handoff_pkce.is_empty() or returned_state != _handoff_pkce.state:

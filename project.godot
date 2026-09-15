@@ -25,6 +25,7 @@ config/icon="res://icon.png"
 [autoload]
 
 WeBumpAPI="*res://scripts/webump_api.gd"
+PerfProbe="*res://scripts/perf_probe.gd"
 
 [display]
 
@@ -103,3 +104,21 @@ anti_aliasing/quality/msaa_3d=2
 lights_and_shadows/directional_shadow/size.web=1024
 anti_aliasing/quality/msaa_3d.web=1
 
+[xogot]
+
+project/editorState=[{
+"column": 0,
+"line": 0,
+"path": "res://scripts/webump_api.gd",
+"type": "file"
+}, {
+"column": 0,
+"current": true,
+"line": 0,
+"path": "gdscript://-9223371943623784632.gd",
+"transient": true,
+"type": "file"
+}]
+project/shaderEditorState=[]
+project/breakpoints={}
+project/disabled_breakpoints={}
