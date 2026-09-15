@@ -22,10 +22,6 @@ boot_splash/bg_color=Color(0.921875, 0.921875, 0.957031, 1)
 boot_splash/image="res://splash-screen.png"
 config/icon="res://icon.png"
 
-[autoload]
-
-WeBumpAPI="*res://scripts/webump_api.gd"
-
 [display]
 
 window/size/viewport_width=1280
@@ -94,7 +90,14 @@ anti_aliasing/quality/msaa_3d=2
 
 [xogot]
 
-project/editorState=[]
+project/editorState=[{
+"column": 0,
+"current": true,
+"line": 0,
+"path": "res://scripts/webump_api.gd",
+"transient": true,
+"type": "file"
+}]
 project/shaderEditorState=[]
 project/breakpoints={}
 project/disabled_breakpoints={}

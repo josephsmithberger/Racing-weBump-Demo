@@ -247,17 +247,19 @@ func _load_preview_model(preset: Dictionary, animate: bool) -> void:
 	_preview_model_inst = scn.instantiate()
 	model_pivot.add_child(_preview_model_inst)
 	
-	# Recolor paint mesh
-	var body_mesh: MeshInstance3D = _preview_model_inst.find_child("body", true, false)
-	if body_mesh:
+	# Paint panels may be split across several meshes (such as the motorcycle fork).
+	var paint_meshes = _preview_model_inst.find_children("*", "MeshInstance3D", true, false)
+	if not paint_meshes.is_empty():
 		var col = _get_current_paint_color(preset)
 		var shader = preload("res://shaders/car_paint.gdshader")
 		_preview_paint_mat = ShaderMaterial.new()
 		_preview_paint_mat.shader = shader
 		_preview_paint_mat.set_shader_parameter("albedo_texture", preload("res://models/Textures/colormap.png"))
 		_preview_paint_mat.set_shader_parameter("paint_color", col)
+		_preview_paint_mat.set_shader_parameter("paint_mask", preset.get("paint_mask", 0))
 		_preview_paint_mat.set_shader_parameter("use_paint_override", true)
-		body_mesh.material_override = _preview_paint_mat
+		for mesh in paint_meshes:
+			(mesh as MeshInstance3D).material_override = _preview_paint_mat
 	
 	# Add overhead billboard nameplate in preview
 	_update_preview_nameplate()

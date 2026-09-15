@@ -154,9 +154,6 @@ func _get_active_color(preset: Dictionary = {}) -> Color:
 	return Color(1.0, 0.70, 0.0)
 
 func apply_body_color(color: Color) -> void:
-	if vehicle_body == null:
-		return
-	
 	if _paint_material == null:
 		var shader = preload("res://shaders/car_paint.gdshader")
 		_paint_material = ShaderMaterial.new()
@@ -164,8 +161,18 @@ func apply_body_color(color: Color) -> void:
 		_paint_material.set_shader_parameter("albedo_texture", preload("res://models/Textures/colormap.png"))
 	
 	_paint_material.set_shader_parameter("paint_color", color)
+	var preset = CarPresets.get_preset_by_id(current_preset_id)
+	_paint_material.set_shader_parameter("paint_mask", preset.get("paint_mask", 0))
 	_paint_material.set_shader_parameter("use_paint_override", true)
-	vehicle_body.material_override = _paint_material
+
+	# Paint panels may live on separate body, fork, or wheel meshes. The shader's
+	# per-preset palette mask leaves lights, glass, tires, and neutral trim intact.
+	var model = $Container.get_node_or_null("Model")
+	if model:
+		for child in model.find_children("*", "MeshInstance3D", true, false):
+			(child as MeshInstance3D).material_override = _paint_material
+	elif vehicle_body:
+		vehicle_body.material_override = _paint_material
 
 func setup_nameplate(display_name: String) -> void:
 	if nameplate_label == null:

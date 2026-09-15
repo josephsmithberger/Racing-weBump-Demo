@@ -6,35 +6,40 @@ const PRESETS: Array[Dictionary] = [
 		"name": "Classic Cab",
 		"model_path": "res://models/vehicle-truck-yellow.glb",
 		"type": "truck",
-		"default_color": Color(1.0, 0.70, 0.0) # Amber
+		"default_color": Color(1.0, 0.70, 0.0), # Amber
+		"paint_mask": 0 # Orange/yellow paint palette
 	},
 	{
 		"id": "truck_red",
 		"name": "Sport Racer",
 		"model_path": "res://models/vehicle-truck-red.glb",
 		"type": "truck",
-		"default_color": Color(1.0, 0.09, 0.27) # Racing Red
+		"default_color": Color(1.0, 0.09, 0.27), # Racing Red
+		"paint_mask": 1 # Red/pink paint palette
 	},
 	{
 		"id": "truck_green",
 		"name": "Heavy Hauler",
 		"model_path": "res://models/vehicle-truck-green.glb",
 		"type": "truck",
-		"default_color": Color(0.0, 0.90, 0.46) # Electric Green
+		"default_color": Color(0.0, 0.90, 0.46), # Electric Green
+		"paint_mask": 2 # Green paint palette
 	},
 	{
 		"id": "truck_purple",
 		"name": "Compact Bug",
 		"model_path": "res://models/vehicle-truck-purple.glb",
 		"type": "truck",
-		"default_color": Color(0.83, 0.0, 0.98) # Neon Purple
+		"default_color": Color(0.83, 0.0, 0.98), # Neon Purple
+		"paint_mask": 3 # Blue paint palette
 	},
 	{
 		"id": "motorcycle",
 		"name": "Street Cycle",
 		"model_path": "res://models/vehicle-motorcycle.glb",
 		"type": "motorcycle",
-		"default_color": Color(0.0, 0.90, 1.0) # Cyan Blue
+		"default_color": Color(0.0, 0.90, 1.0), # Cyan Blue
+		"paint_mask": 2 # Green paint palette
 	}
 ]
 
@@ -145,4 +150,3 @@ static func get_api(caller: Node = null) -> Node:
 		_api_instance = api
 		return _api_instance
 	return null
-
