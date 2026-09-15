@@ -2,14 +2,61 @@
 
 # weBump Racing Demo
 
-A playable Godot example of mapping weBump visitor cards to racing opponents.
-Built on Kenney's arcade racing starter kit.
+A small, playable Godot game that shows how to use the **weBump Connected Games
+API**: people you bump in real life become your racing rivals, and a replay
+they chose to share races you as a ghost. Think StreetPass, in your own game.
 
-## Run locally
+**Play it:** [webump.app/demo](https://webump.app/demo) ·
+**Read the API docs:** [developer.webump.app](https://developer.webump.app)
 
-Open `project.godot` in **Godot 4.7** and press **F6** on the title scene, or **F5**
-to run the project. Choose a car and select **Start Race**. No account is required.
-**Connect with weBump** simulates a profile in the editor.
+| Docs | What it covers |
+| --- | --- |
+| [Get started](https://developer.webump.app/tutorial) | Apply for a project, OAuth with PKCE, private saves, visitor handoffs |
+| [Share selected game data](https://developer.webump.app/tutorial#shared-data) | The `game.shared` flow this demo uses for replays |
+| [API reference](https://developer.webump.app/reference) | Every endpoint, error code and limit (OpenAPI) |
+| [Connect button](https://developer.webump.app/brand) | The official control and assets used on the title screen |
+| [Project lifecycle](https://developer.webump.app/lifecycle) | Review, permissions changes, suspension and data export |
+| [Changelog](https://developer.webump.app/changelog) | Platform changes |
+
+## What the demo does with the API
+
+Everything API-related lives in [`scripts/webump_api.gd`](scripts/webump_api.gd),
+a single autoload. The rest of the game only calls its public functions and
+listens to its signals.
+
+| Step | Endpoint | Scope | In this repo |
+| --- | --- | --- | --- |
+| Connect (OAuth 2.0 + PKCE, public client) | `GET /oauth/authorize`, `POST /oauth/token` | `profile.basic` | `connect_player()`, `exchange_authorization_code()`, refresh in `_ensure_fresh_token()` |
+| Read the player's name and color | `GET /v1/me` | `profile.basic` | `fetch_player_profile()` → nameplate and paint |
+| Private save (never visible to others) | `GET /v1/me/state`, `PUT /v1/me/state/:key` | `game.state` | `racing_save`, `ghost_telemetry` |
+| Public high score on bump cards / profile | `PUT /v1/me/capsule`, `PUT /v1/me/showcase` | `game.capsule`, `game.showcase` | `save_public_highscore()` |
+| Share one replay, on purpose | `PUT /v1/me/shared` (`{"publish":true,…}`) | `game.shared` | **Share Replay** button on the results card |
+| Bring in bumps | `POST /v1/me/visitor-handoff` (begin / redeem) | `visitors.receive` | **Bring in your bumps** on the title screen |
+| Revalidate rivals and fetch their replay | `GET /v1/me/visitors/:ref`, `…/:ref/shared` | `visitors.receive` + `game.shared` | `refresh_visitors()` → `RivalRoster` |
+| Disconnect | `POST /oauth/revoke` | — | `disconnect_player()` |
+
+Privacy rules the demo follows, and that you should too:
+
+- Tokens live in memory only. Public identifiers (`client_id`, API origin,
+  callback) are in [`config.json`](config.json); nothing secret ships in the export.
+- A rival's replay is never read from their private state. Each player publishes
+  one replay through `game.shared` after pressing a button; the server also
+  requires their own "Share selected game data" toggle in the weBump app.
+- `410` on a visitor read means that person opted out, expired, withdrew, or
+  blocked. The demo races them as AI instead of complaining.
+- Every write sends `If-Match` with the latest revision. A `409` is surfaced,
+  never retried blindly; the local save is always kept.
+
+The reviewed shared-data schema for this game is
+[`docs/shared_data_definition.json`](docs/shared_data_definition.json).
+[`docs/API_INTEGRATION.md`](docs/API_INTEGRATION.md) documents the replay
+contract, the web callback relay, and revision handling in detail.
+
+## Run it locally
+
+Open `project.godot` in **Godot 4.7** and press **F5**. No account is needed:
+the editor runs in **mock mode**, which simulates a connected profile and races
+you against Maya's synthetic ghost plus Liam and Sam.
 
 | Controls | Action |
 | --- | --- |
@@ -17,78 +64,49 @@ to run the project. Choose a car and select **Start Race**. No account is requir
 | S / Down | Brake / reverse |
 | A, D / Left, Right | Steer |
 
-Offline races include Maya's synthetic ghost, Liam, and Sam. Three rival slots
-are filled from available visitor cards, with valid ghosts taking priority.
-Empty slots use practice AI. A race roster stays fixed until the next race.
-
-## Racing and results
-
-- Three laps with ordered checkpoints.
-- Visitor names and theme colors identify both ghost and AI opponents.
-- Ghosts replay the saved car model, position, heading, and lean on the race clock.
-- Missing, malformed, incomplete, or incompatible recordings fall back to AI.
-- The finish screen ranks all entrants. Ghost times are **Recorded**; completed AI
-  times are **Finished**. Unfinished AI times are **Estimated**, using observed
-  track progress and lap pace. Estimates cannot put an unfinished AI ahead of
-  the player who just finished.
-- Personal bests and complete replays save locally; connected saves attempt cloud
-  synchronization. A replay takes at most three minutes, 256 frames, and 12 KB
-  of compact JSON, leaving space in weBump's 16 KiB private state document.
-- **Share Replay** on the results card publishes only the best complete replay
-  through weBump's selected shared game data (`game.shared`). It is an explicit
-  button, never automatic, and the player must also turn on "Share selected game
-  data" for this game in the weBump app. Private saves are never shared.
-
-## API example: implemented boundary
-
-`WeBumpAPI` is a normal Godot autoload. Public configuration lives in `config.json`;
-local preferences and records live under Godot's `user://` directory. Tokens stay
-in memory and are never bundled or written into the save file.
-
-| Resource | Example use |
-| --- | --- |
-| `/oauth/authorize`, `/oauth/token` | PKCE connection; callback state validation |
-| `GET /v1/me` | Player name and color |
-| `GET /v1/me/state` | Read custom private saves |
-| `PUT /v1/me/state/:key` | Save `racing_save` and `ghost_telemetry` (private) |
-| `GET/PUT /v1/me/capsule`, `/showcase` | Approved integer high scores |
-| `GET /v1/me/permissions` | Whether the player enabled selected-data sharing |
-| `PUT /v1/me/shared` | Publish the selected replay (`{"publish":true,"value":…}`) |
-| `POST /v1/me/visitor-handoff` | Begin and redeem approved visitor handoff |
-| `GET /v1/me/visitors/:reference` | Revalidate an authorized visitor card |
-| `GET /v1/me/visitors/:reference/shared` | Fetch that rival's shared replay, if any |
-
-**How ghosts travel between players:** a rival's replay is never read from
-their private state. Each player chooses to publish one replay through
-`game.shared`; the game later fetches it by the authorized bump reference. A
-`410` means nothing is shared (opted out, expired, withdrawn, or blocked) and
-that rival races as AI. The reviewed schema for this game is in
-[docs/shared_data_definition.json](docs/shared_data_definition.json). See
-[API integration](docs/API_INTEGRATION.md) for the exact handoff and replay shape.
-
-The website's callback page also needs a complete game session integration before
-live OAuth/handoff works end to end. Desktop browser callbacks are not delivered
-automatically. This repository does not deploy or change the website/backend.
+Three laps with ordered checkpoints. Three rival slots are filled from visitor
+cards (valid ghosts first), then practice AI. Ghost times are **Recorded**,
+finished AI times are **Finished**, unfinished AI times are projected from
+observed pace. Personal bests and complete replays (≤ 3 minutes, ≤ 256 frames,
+≤ 12 KB) save locally first; connected saves sync to weBump afterwards.
 
 ## Code map
 
 | File | Responsibility |
 | --- | --- |
-| `scripts/webump_api.gd` | Profile, saves, serialized revision writes, visitor adapter |
-| `scripts/rival_roster.gd` | Validate identity, prioritize ghosts, synthetic demo cards |
-| `scripts/ghost_data.gd` | Replay validation and byte-budget compaction |
-| `scripts/ghost_recorder.gd` | Record complete runs and preserve best saves |
-| `scripts/ghost_driver.gd` | Interpolate recorded telemetry |
-| `scripts/ai_vehicle.gd` | Waypoint driver, lap progress, finish events |
-| `scripts/race_manager.gd` | Countdown, roster, checkpoints, results snapshot |
-| `scripts/race_standings.gd` | Finish projection and ranking |
-| `scripts/race_hud.gd` | Race feedback and leaderboard |
-| `scripts/vehicle.gd`, `car_presets.gd` | Shared vehicle physics and paint/model selection |
+| `scripts/webump_api.gd` | Session, transport, saves, shared replay, visitors |
+| `scripts/webump_connect_button.gd` | Official connect control (see the brand page) |
+| `scripts/title_screen.gd` | Car chooser, connect, bring in bumps, start |
+| `scripts/rival_roster.gd` | Turn visitor cards into a bounded race roster |
+| `scripts/ghost_data.gd` | Replay validation, compaction, shared document |
+| `scripts/ghost_recorder.gd` | Record runs, keep the best, share on request |
+| `scripts/ghost_driver.gd` | Replay a recording on the race clock |
+| `scripts/ai_vehicle.gd` | Waypoint driver, laps, finish effects |
+| `scripts/race_manager.gd`, `race_standings.gd` | Countdown, roster, checkpoints, results |
+| `scripts/race_hud.gd` | HUD, results card, Share Replay |
+| `scripts/vehicle.gd`, `car_presets.gd` | Vehicle physics, paint and model presets |
+| `web/shell.html` | Web export shell with the approval popup relay |
 
-AI and ghost scenes inherit the player vehicle prefab so geometry, sound, and
-physics setup remain in one place. Track geometry is in `scenes/main.tscn`;
-update `track_path.gd` and increment `GhostData.TRACK_ID` when changing its layout.
-Planning notes, local experiments, credentials, and build outputs are gitignored.
+Rival and ghost vehicles inherit `scenes/vehicle.tscn` so geometry, sounds,
+nameplates and effects are set up once in the scene files.
+
+## Web export and hosting
+
+The `Web` preset is single-threaded (works in iOS Safari, no cross-origin
+isolation headers) and uses `web/shell.html`, which adds the popup relay for the
+OAuth callback. Export from the editor or:
+
+```sh
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . --export-release Web build/web/index.html
+```
+
+`build/` is gitignored. The export is published on this repository's
+`gh-pages` branch and embedded by [webump.app/demo](https://webump.app/demo),
+which is also the registered OAuth callback. In the browser the game is a
+public OAuth client: it completes PKCE itself (the API answers CORS for
+third-party routes) and keeps tokens in memory. On desktop builds the approval
+opens in your browser but the callback is not delivered back, so live mode is a
+web feature; the editor stays in mock mode.
 
 ## Verify
 
@@ -101,14 +119,9 @@ godot --headless --fixed-fps 60 --path . --script tests/test_race_simulation.gd
 godot --headless --fixed-fps 60 --path . --script tests/test_ghost_sharing.gd
 ```
 
-Checks cover malformed/truncated telemetry, payload limits, roster replacement,
-model/paint/name matching, playback, result retention after rivals disappear,
-actual/recorded/estimated ordering, sequential API revisions, cold threaded loading,
-and complete AI races. Add `-- --visual` to the racing UI check
-and omit `--headless` to capture `/tmp/webump-leaderboard.png`.
+## Credits and license
 
-## License and credits
-
-Code: [MIT](LICENSE), including the original Kenney copyright notice.
-Sprites, models, and sounds: [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
-Skid sound by [Landeplage](https://github.com/Landeplage).
+Built on [Kenney's Starter Kit Racing](https://github.com/KenneyNL/Starter-Kit-Racing)
+(CC0 assets and starter code) with the [Godot Engine](https://godotengine.org).
+This demo keeps the same license; see [LICENSE](LICENSE). weBump and its API are
+not affiliated with Kenney.

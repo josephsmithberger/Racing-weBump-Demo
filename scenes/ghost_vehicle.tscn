@@ -1,7 +1,7 @@
 [gd_scene format=3]
 
-[ext_resource type="PackedScene" path="res://scenes/vehicle.tscn" id="1_vehicle"]
+[ext_resource type="PackedScene" path="res://scenes/ai_vehicle.tscn" id="1_ai"]
 [ext_resource type="Script" path="res://scripts/ghost_driver.gd" id="2_driver"]
 
-[node name="GhostVehicle" instance=ExtResource("1_vehicle")]
+[node name="GhostVehicle" instance=ExtResource("1_ai")]
 script = ExtResource("2_driver")

@@ -48,26 +48,33 @@ validator: 10,703 JSON bytes, about 12.2 KiB as JSONB text, under the 16 KiB cap
 Undeclared keys, unknown car bodies, five-component frames and other versions are
 rejected server-side, so the recorder must not add fields without a schema update.
 
-## Host responsibilities
+## Web callback and session
 
-1. Start OAuth with PKCE and deliver the exact registered callback's code and
-   state to `exchange_authorization_code(code, state)`. Validate the callback
-   origin/path in the host. The existing website only stores callback values in
-   session storage; it does not complete this round trip to a running game.
-2. Fetch the player's profile and private save before racing. For a public web
-   release, complete the website's intended same-origin session backend; keep
-   player tokens in the backend. The in-memory Godot client is a native/reference
-   implementation, not a replacement for that web session service.
-3. Start `begin_visitor_handoff()`, navigate to the returned `authorization_url`,
-   and deliver the approved code/state to `redeem_visitor_handoff(code, state)`.
-4. Use `refresh_visitors()` on foreground sync before the next race. Missing or
-   rejected cards are removed. Visitor cards remain session-only and are cleared
-   on disconnect. Expired receipt references are not permanent player IDs.
-5. Replays normally arrive from the `game.shared` read inside `refresh_visitors()`.
-   A host adapter may still attach an independently authorized recording with
-   `set_visitor_cards(cards)` after the refresh; a refresh replaces the cards, so
-   the adapter must reauthorize attachments too. Never read another player's
-   private `state` directly.
+The demo is a public OAuth client. `web/shell.html` (the custom export shell)
+exposes `window.webumpOpenApproval(url)`, which opens the weBump approval page
+in a popup, and listens for a `message` from the registered callback origin
+(`https://webump.app`). The callback page posts `{type: "webump-callback",
+code, state, error}` to the opener and closes; the shell forwards it to the
+callback the game registered as `window.webumpDeliverCallback`.
+`WeBumpAPI._on_web_callback()` routes by `state`: the pending connect flow calls
+`exchange_authorization_code()`, the pending visitor handoff calls
+`redeem_visitor_handoff()`. The API answers CORS for `/oauth/token`,
+`/oauth/revoke` and `/v1/*`, so the export talks to it directly.
+
+Tokens stay in memory. Access tokens last ten minutes; `_ensure_fresh_token()`
+refreshes once, shortly before expiry, with the rotating refresh token. A
+failed refresh ends the session (refresh responses are single-use and must not
+be retried). Disconnecting revokes the refresh token best-effort.
+
+1. **Bring in your bumps** (title screen) calls `request_visitors()`, which
+   begins the handoff (`POST /v1/me/visitor-handoff`, `action: "begin"`) and
+   opens `authorization_url`. The redeem step returns cards; `refresh_visitors()`
+   then revalidates each one and fetches its shared replay.
+2. Visitor cards are session-only and cleared on disconnect. Expired receipt
+   references are not permanent player IDs. Missing or rejected cards are
+   dropped on refresh: revoked or expired rivals are never raced from cache.
+3. Desktop builds open the approval in the system browser but receive no
+   callback; live mode is a web feature and the editor uses mock mode.
 
 The game takes a roster snapshot at countdown. `set_visitor_cards` accepts up to
 50 cards and the roster picks three, prioritizing valid recordings. Malformed

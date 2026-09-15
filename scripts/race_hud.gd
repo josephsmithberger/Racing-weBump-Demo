@@ -3,7 +3,8 @@ class_name RaceHUD extends CanvasLayer
 @export var race_manager: RaceManager
 @export var view_camera: Node3D
 
-var _audio: RaceAudio
+@onready var _audio: RaceAudio = $RaceAudio
+var _recorder: GhostRecorder
 
 # UI references
 @onready var lap_badge: PanelContainer = %LapBadge
@@ -39,10 +40,6 @@ var _audio: RaceAudio
 @onready var title_button: Button = %TitleButton
 
 func _ready() -> void:
-	# Add procedural audio synthesizer
-	_audio = RaceAudio.new()
-	add_child(_audio)
-	
 	# Initial visibility
 	countdown_container.visible = false
 	split_toast.visible = false
@@ -70,6 +67,7 @@ func _ready() -> void:
 		race_manager = get_node_or_null("../RaceManager") as RaceManager
 	
 	if race_manager:
+		_recorder = race_manager.get_node_or_null("GhostRecorder") as GhostRecorder
 		race_manager.countdown_tick.connect(_on_countdown_tick)
 		race_manager.race_started.connect(_on_race_started)
 		race_manager.lap_completed.connect(_on_lap_completed)
@@ -81,13 +79,14 @@ func _ready() -> void:
 	best_label.text = "BEST: --:--.--"
 
 func _process(_delta: float) -> void:
-	if results_screen.visible and race_manager:
-		var recorder := race_manager.get_node_or_null("GhostRecorder") as GhostRecorder
-		if recorder:
-			ghost_sync_label.text = recorder.result_message
-			share_label.text = recorder.share_message
-			share_label.visible = not recorder.share_message.is_empty()
-			share_button.disabled = not recorder.can_share_best_ghost()
+	if results_screen.visible and _recorder:
+		# Only touch labels when text changes; Label text assignment reshapes glyphs.
+		if ghost_sync_label.text != _recorder.result_message:
+			ghost_sync_label.text = _recorder.result_message
+		if share_label.text != _recorder.share_message:
+			share_label.text = _recorder.share_message
+			share_label.visible = not _recorder.share_message.is_empty()
+		share_button.disabled = not _recorder.can_share_best_ghost()
 
 func format_time(seconds: float) -> String:
 	if seconds < 0.0:
@@ -312,7 +311,7 @@ func _show_results(total_time: float, lap_times: Array, best_lap_time: float) ->
 	for lap in lap_times:
 		splits.append(format_time(lap))
 	result_best_lap.text = "YOUR LAPS  " + "  /  ".join(splits) + "\nBEST LAP  " + format_time(best_lap_time)
-	var recorder := race_manager.get_node_or_null("GhostRecorder") as GhostRecorder
+	var recorder := _recorder
 	ghost_sync_label.text = recorder.result_message if recorder else ""
 	# Sharing is a separate, explicit choice: only connected players with a complete replay see it.
 	share_button.visible = recorder != null and recorder.can_share_best_ghost()

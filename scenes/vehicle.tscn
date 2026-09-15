@@ -20,8 +20,6 @@ particles_anim_h_frames = 1
 particles_anim_v_frames = 1
 particles_anim_loop = false
 grow_amount = 0.5
-proximity_fade_enabled = true
-proximity_fade_distance = 0.25
 
 [sub_resource type="Curve" id="Curve_t02a3"]
 _data = [Vector2(0, 0), 0.0, 0.0, 0, 0, Vector2(0.503968, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
@@ -118,3 +116,11 @@ angular_damp = 4.0
 shape = SubResource("SphereShape3D_hhncp")
 
 [connection signal="body_entered" from="Sphere" to="." method="_on_sphere_body_entered"]
+
+[node name="Nameplate" type="Label3D" parent="Container"]
+visible = false
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.85, 0)
+billboard = 1
+font_size = 28
+outline_size = 8
+outline_modulate = Color(0.04, 0.05, 0.08, 0.95)

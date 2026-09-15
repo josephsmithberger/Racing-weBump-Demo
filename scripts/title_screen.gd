@@ -18,17 +18,19 @@ extends Control
 @onready var color_status_label: Label = %ColorStatusLabel
 @onready var pagination_container: HBoxContainer = %PaginationContainer
 @onready var car_tabs_container: HBoxContainer = %CarTabsContainer
+@onready var _preview_nameplate: Label3D = %PreviewNameplate
+@onready var _audio: RaceAudio = $RaceAudio
 
 # Action buttons & loading
 @onready var connect_button: WeBumpConnectButton = %WeBumpConnectButton
 @onready var play_button: Button = %PlayButton
+@onready var visitors_button: Button = %VisitorsButton
 @onready var hint_label: Label = %HintLabel
 @onready var button_container: VBoxContainer = %ButtonContainer
 @onready var loading_container: VBoxContainer = %LoadingContainer
 @onready var progress_bar: ProgressBar = %ProgressBar
 @onready var status_label: Label = %StatusLabel
 
-var _audio: RaceAudio = null
 var _is_loading: bool = false
 var _progress: Array = []
 
@@ -36,16 +38,11 @@ var _progress: Array = []
 var _current_car_index: int = 0
 var _preview_model_inst: Node3D = null
 var _preview_paint_mat: ShaderMaterial = null
-var _preview_nameplate: Label3D = null
-var _drag_start_x: float = 0.0
 var _is_dragging: bool = false
 var _turntable_auto_spin: bool = true
 var _car_tab_buttons: Array[Button] = []
 
 func _ready() -> void:
-	_audio = RaceAudio.new()
-	add_child(_audio)
-	
 	loading_container.visible = false
 	button_container.visible = true
 	hint_label.visible = true
@@ -59,10 +56,19 @@ func _ready() -> void:
 	
 	play_button.pressed.connect(_on_play_pressed)
 	play_button.mouse_entered.connect(func(): if _audio and not play_button.disabled: _audio.play_hover())
+	visitors_button.pressed.connect(_on_visitors_pressed)
+	visitors_button.mouse_entered.connect(func(): if _audio and not visitors_button.disabled: _audio.play_hover())
 	
 	if connect_button:
 		connect_button.connection_started.connect(_on_connection_started)
 		connect_button.connection_changed.connect(_on_connection_changed)
+	var api = _get_api()
+	if api:
+		api.visitors_updated.connect(_on_visitors_updated)
+		api.visitors_failed.connect(_on_visitors_failed)
+		if api.is_authenticated and not api.is_mock_mode:
+			visitors_button.visible = true
+			_on_visitors_updated(api.visitor_cards)
 
 func _get_api() -> Node:
 	return CarPresets.get_api()
@@ -281,20 +287,7 @@ func _update_preview_nameplate() -> void:
 	if api:
 		name_text = api.get_player_display_name()
 	
-	if _preview_nameplate == null and model_pivot != null:
-		_preview_nameplate = Label3D.new()
-		_preview_nameplate.name = "PreviewNameplate"
-		_preview_nameplate.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		_preview_nameplate.position = Vector3(0, 1.45, 0)
-		_preview_nameplate.font_size = 24
-		_preview_nameplate.outline_size = 6
-		_preview_nameplate.outline_modulate = Color(0.04, 0.05, 0.08, 0.95)
-		_preview_nameplate.shaded = false
-		_preview_nameplate.double_sided = true
-		model_pivot.add_child(_preview_nameplate)
-	
-	if _preview_nameplate != null:
-		_preview_nameplate.text = name_text
+	_preview_nameplate.text = name_text
 
 func _get_current_paint_color(preset: Dictionary) -> Color:
 	var api = _get_api()
@@ -388,12 +381,14 @@ func _on_connection_changed(connected: bool, profile: Dictionary) -> void:
 		var p_name = profile.get("display_name", "Player")
 		var is_mock = profile.get("is_mock", false)
 		
+		visitors_button.visible = not is_mock
+		visitors_button.disabled = false
+		visitors_button.text = "BRING IN YOUR BUMPS"
 		if is_mock:
 			hint_label.text = "[MOCK MODE] Connected as %s • Ready to Race!" % p_name
-			hint_label.add_theme_color_override("font_color", Color(0.165, 0.690, 0.388, 1.0))
 		else:
-			hint_label.text = "Connected as %s • Ready to Race!" % p_name
-			hint_label.add_theme_color_override("font_color", Color(0.165, 0.690, 0.388, 1.0))
+			hint_label.text = "Connected as %s • Bring in your bumps to race real rivals" % p_name
+		hint_label.add_theme_color_override("font_color", Color(0.165, 0.690, 0.388, 1.0))
 		
 		# Animate start button bounce
 		play_button.pivot_offset = play_button.size * 0.5
@@ -401,9 +396,47 @@ func _on_connection_changed(connected: bool, profile: Dictionary) -> void:
 		tween.tween_property(play_button, "scale", Vector2(1.04, 1.04), 0.12).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 		tween.tween_property(play_button, "scale", Vector2(1.0, 1.0), 0.12).set_trans(Tween.TRANS_SINE)
 	else:
+		visitors_button.visible = false
 		play_button.disabled = false
 		play_button.text = "START RACE ▶▶"
 		_setup_mode_display()
+
+# ===================================================================
+# VISITOR HANDOFF: the player brings eligible bumps into this game
+# ===================================================================
+func _on_visitors_pressed() -> void:
+	if _audio:
+		_audio.play_click()
+	var api = _get_api()
+	if api == null:
+		return
+	visitors_button.disabled = true
+	hint_label.text = "Approve the visitor handoff in the weBump app…"
+	hint_label.add_theme_color_override("font_color", Color(0.235, 0.561, 0.949, 1.0))
+	if not await api.request_visitors():
+		visitors_button.disabled = false
+
+func _on_visitors_updated(cards: Array) -> void:
+	var api = _get_api()
+	if api == null or not api.is_authenticated or api.is_mock_mode:
+		return
+	visitors_button.disabled = false
+	if cards.is_empty():
+		hint_label.text = "No eligible bumps yet • practice rivals will race you"
+		hint_label.add_theme_color_override("font_color", Color(0.55, 0.62, 0.75, 1.0))
+		return
+	var ghosts := 0
+	for card in cards:
+		if card is Dictionary and GhostData.is_valid(card.get("ghost_telemetry", {})):
+			ghosts += 1
+	visitors_button.text = "REFRESH BUMPS"
+	hint_label.text = "%d rival%s from your bumps ready • %d shared replay%s" % [cards.size(), "" if cards.size() == 1 else "s", ghosts, "" if ghosts == 1 else "s"]
+	hint_label.add_theme_color_override("font_color", Color(0.165, 0.690, 0.388, 1.0))
+
+func _on_visitors_failed(message: String) -> void:
+	visitors_button.disabled = false
+	hint_label.text = message
+	hint_label.add_theme_color_override("font_color", Color(1.0, 0.553, 0.157, 1.0))
 
 func _on_play_pressed() -> void:
 	if _is_loading or play_button.disabled:

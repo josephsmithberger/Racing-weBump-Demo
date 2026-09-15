@@ -25,7 +25,7 @@ var wheel_back: Node3D
 var is_motorcycle: bool = false
 
 # Nameplate & Custom Paint
-var nameplate_label: Label3D
+@onready var nameplate_label: Label3D = get_node_or_null("Container/Nameplate")
 var current_preset_id: String = "truck_yellow"
 var _paint_material: ShaderMaterial
 
@@ -176,18 +176,9 @@ func apply_body_color(color: Color) -> void:
 
 func setup_nameplate(display_name: String) -> void:
 	if nameplate_label == null:
-		nameplate_label = Label3D.new()
-		nameplate_label.name = "Nameplate"
-		nameplate_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		nameplate_label.position = Vector3(0, 1.85, 0)
-		nameplate_label.font_size = 28
-		nameplate_label.outline_size = 8
-		nameplate_label.outline_modulate = Color(0.04, 0.05, 0.08, 0.95)
-		nameplate_label.shaded = false
-		nameplate_label.double_sided = true
-		$Container.add_child(nameplate_label)
-	
+		return
 	nameplate_label.text = display_name
+	nameplate_label.visible = true
 
 # Functions
 

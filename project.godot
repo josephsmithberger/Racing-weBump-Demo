@@ -30,6 +30,7 @@ WeBumpAPI="*res://scripts/webump_api.gd"
 
 window/size/viewport_width=1280
 window/size/viewport_height=720
+window/stretch/mode="canvas_items"
 
 [editor]
 
@@ -74,6 +75,14 @@ bounce={
 "events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":0,"physical_keycode":32,"key_label":0,"unicode":32,"location":0,"echo":false,"script":null)
 ]
 }
+none={
+"deadzone": 0.5,
+"events": []
+}
+
+[input_devices]
+
+pointing/emulate_touch_from_mouse=true
 
 [physics]
 
@@ -84,22 +93,13 @@ bounce={
 
 renderer/rendering_method="forward_plus"
 textures/vram_compression/import_etc2_astc=true
+lights_and_shadows/directional_shadow/size=2048
 lights_and_shadows/directional_shadow/soft_shadow_filter_quality=1
 environment/ssao/quality=3
 environment/ssao/half_size=false
 environment/ssao/fadeout_from=500.0
 environment/ssao/fadeout_to=2000.0
 anti_aliasing/quality/msaa_3d=2
+lights_and_shadows/directional_shadow/size.web=1024
+anti_aliasing/quality/msaa_3d.web=1
 
-[xogot]
-
-project/editorState=[{
-"column": 0,
-"current": true,
-"line": 0,
-"path": "res://scripts/webump_api.gd",
-"type": "file"
-}]
-project/shaderEditorState=[]
-project/breakpoints={}
-project/disabled_breakpoints={}

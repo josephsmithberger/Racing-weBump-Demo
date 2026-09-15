@@ -33,24 +33,14 @@ var _last_pos: Vector3 = Vector3.ZERO
 var _prev_offset: float = 0.0
 var _reached_backstretch: bool = false
 var _racing_active: bool = false
+var _finish_offset: float = -1.0
+var _baked_len: float = 0.0
 
-var _confetti_emitter: CPUParticles3D
-var _pop_player: AudioStreamPlayer3D
+# Finish effects are scene nodes (ai_vehicle.tscn); only the pop sound is synthesized once.
+@onready var _confetti_emitter: CPUParticles3D = $Confetti
+@onready var _pop_player: AudioStreamPlayer3D = $PopSound
 
-static var _shared_confetti_mesh: QuadMesh
 static var _shared_pop_audio: AudioStreamWAV
-
-static func _get_shared_confetti_mesh() -> QuadMesh:
-	if _shared_confetti_mesh == null:
-		var q = QuadMesh.new()
-		q.size = Vector2(0.14, 0.22)
-		var mat = StandardMaterial3D.new()
-		mat.vertex_color_use_as_albedo = true
-		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		q.material = mat
-		_shared_confetti_mesh = q
-	return _shared_confetti_mesh
 
 static func _get_shared_pop_audio() -> AudioStreamWAV:
 	if _shared_pop_audio == null:
@@ -88,8 +78,8 @@ func _ready() -> void:
 	if impact_sound != null:
 		impact_sound.volume_db -= 4.0
 	
-	# 5. Pre-warm and pre-allocate confetti effects to prevent first-time stutter
-	_init_prewarmed_effects()
+	# 5. The confetti emitter is pre-built in the scene; bind the shared pop sound.
+	_pop_player.stream = _get_shared_pop_audio()
 	
 	# 6. Overhead driver nameplate
 	setup_nameplate(driver_name)
@@ -118,38 +108,15 @@ func _ready() -> void:
 	
 	_last_pos = global_position
 	if _curve != null:
+		_cache_curve_metrics()
 		_prev_offset = _lap_offset(vehicle_model.global_position)
-		race_progress = _prev_offset / _curve.get_baked_length()
+		race_progress = _prev_offset / _baked_len
 
-func _init_prewarmed_effects() -> void:
-	# Pre-create particle emitter and pre-bind mesh/shader so GPU compiles during countdown
-	_confetti_emitter = CPUParticles3D.new()
-	_confetti_emitter.name = "PrewarmedConfetti"
-	_confetti_emitter.emitting = false
-	_confetti_emitter.one_shot = true
-	_confetti_emitter.explosiveness = 0.98
-	_confetti_emitter.amount = 180
-	_confetti_emitter.lifetime = 3.0
-	_confetti_emitter.direction = Vector3(0, 1, 0)
-	_confetti_emitter.spread = 75.0
-	_confetti_emitter.initial_velocity_min = 7.0
-	_confetti_emitter.initial_velocity_max = 13.0
-	_confetti_emitter.damping_min = 2.5
-	_confetti_emitter.damping_max = 4.5
-	_confetti_emitter.angular_velocity_min = -360.0
-	_confetti_emitter.angular_velocity_max = 360.0
-	_confetti_emitter.mesh = _get_shared_confetti_mesh()
-	_confetti_emitter.hue_variation_min = -1.0
-	_confetti_emitter.hue_variation_max = 1.0
-	_confetti_emitter.color = Color(1.0, 0.8, 0.2, 1.0)
-	add_child(_confetti_emitter)
-	
-	# Pre-create audio player with pre-baked sound
-	_pop_player = AudioStreamPlayer3D.new()
-	_pop_player.stream = _get_shared_pop_audio()
-	_pop_player.volume_db = 3.0
-	_pop_player.unit_size = 20.0
-	add_child(_pop_player)
+func _cache_curve_metrics() -> void:
+	# Curve3D.get_closest_offset walks every baked point; the finish offset and
+	# baked length never change, so compute them once instead of per physics tick.
+	_baked_len = _curve.get_baked_length()
+	_finish_offset = _curve.get_closest_offset(Vector3(3.75, 0, 1.5))
 
 func _on_race_started() -> void:
 	if is_finished:
@@ -169,13 +136,15 @@ func handle_input(delta: float) -> void:
 		return
 
 	var current_pos = vehicle_model.global_position
-	var baked_len = _curve.get_baked_length()
+	if _finish_offset < 0.0:
+		_cache_curve_metrics()
+	var baked_len = _baked_len
 	if baked_len <= 0.0:
 		return
 
-	# 1. Track curve progress & lap completion
-	var current_offset = _curve.get_closest_offset(current_pos)
-	_update_lap_tracking(_lap_offset(current_pos), baked_len)
+	# 1. Track curve progress & lap completion (one closest-point search per tick)
+	var current_offset = _curve.get_closest_offset(track_path.to_local(current_pos))
+	_update_lap_tracking(fposmod(current_offset - _finish_offset, baked_len), baked_len)
 	if is_finished:
 		return
 
@@ -220,8 +189,9 @@ func handle_input(delta: float) -> void:
 
 func _lap_offset(world_position: Vector3) -> float:
 	# Match the actual finish gate, which is not the first point of the curve.
-	var finish := _curve.get_closest_offset(Vector3(3.75, 0, 1.5))
-	return fposmod(_curve.get_closest_offset(track_path.to_local(world_position)) - finish, _curve.get_baked_length())
+	if _finish_offset < 0.0:
+		_cache_curve_metrics()
+	return fposmod(_curve.get_closest_offset(track_path.to_local(world_position)) - _finish_offset, _baked_len)
 
 func _update_lap_tracking(current_offset: float, baked_len: float) -> void:
 	if current_offset > baked_len * 0.4 and current_offset < baked_len * 0.7:

@@ -2,19 +2,25 @@
 
 [ext_resource type="Environment" uid="uid://c3bs0wfxpri8g" path="res://scenes/main-environment.tres" id="1_q4t1r"]
 [ext_resource type="Script" uid="uid://b24bstassw26s" path="res://scripts/view.gd" id="5_0lrhn"]
+[ext_resource type="ArrayMesh" uid="uid://dq7dq5chh77af" path="res://models/static_props_baked.res" id="6_a8y0u"]
 [ext_resource type="PackedScene" uid="uid://badoy1c127yhf" path="res://scenes/vehicle.tscn" id="7_o6xl0"]
 [ext_resource type="MeshLibrary" uid="uid://b6myd2b7l2o2j" path="res://models/Library/mesh-library.tres" id="8_eg7gk"]
 [ext_resource type="PackedScene" uid="uid://c44tfiddyjjm1" path="res://models/vehicle-truck-green.glb" id="9_cmq2j"]
 [ext_resource type="PackedScene" uid="uid://c5e64mpylh1ge" path="res://models/vehicle-truck-purple.glb" id="10_p3c1o"]
 [ext_resource type="PackedScene" uid="uid://b34e2pvbemfac" path="res://models/vehicle-truck-red.glb" id="11_wocnk"]
-[ext_resource type="Script" path="res://scripts/race_manager.gd" id="12_race"]
+[ext_resource type="Script" uid="uid://j4m1ctu66m7" path="res://scripts/race_manager.gd" id="12_race"]
 [ext_resource type="PackedScene" uid="uid://c3f5g8p7k4m1n" path="res://scenes/race_hud.tscn" id="13_hud"]
-[ext_resource type="Script" path="res://scripts/track_checkpoint.gd" id="14_ckpt"]
-[ext_resource type="Script" path="res://scripts/track_path.gd" id="15_path"]
-[ext_resource type="Script" path="res://scripts/ghost_recorder.gd" id="18_ghost"]
+[ext_resource type="Script" uid="uid://o5dirajqt3qi" path="res://scripts/track_checkpoint.gd" id="14_ckpt"]
+[ext_resource type="Script" uid="uid://b5ivwbw8yg358" path="res://scripts/track_path.gd" id="15_path"]
+[ext_resource type="Script" uid="uid://c5mffq7ret1hi" path="res://scripts/ghost_recorder.gd" id="18_ghost"]
+[ext_resource type="PackedScene" path="res://scenes/virtual_joysticks.tscn" id="19_joysticks"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_ya4ey"]
 size = Vector3(60, 0, 60)
+
+[sub_resource type="PhysicsMaterial" id="PhysicsMaterial_tipki"]
+friction = 0.0
+bounce = 0.1
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_finish"]
 size = Vector3(12, 4, 2)
@@ -27,10 +33,6 @@ size = Vector3(12, 4, 2)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_sector3"]
 size = Vector3(12, 4, 2)
-
-[sub_resource type="PhysicsMaterial" id="PhysicsMaterial_tipki"]
-friction = 0.0
-bounce = 0.1
 
 [node name="Main" type="Node3D" unique_id=1145999287]
 
@@ -77,35 +79,44 @@ metadata/_editor_floor_ = Vector3(0, 0, 0)
 
 [node name="vehicle-truck-green" parent="." unique_id=261795706 instance=ExtResource("9_cmq2j")]
 transform = Transform3D(-0.139916, 0, 0.990163, 0, 1, 0, -0.990163, 0, -0.139916, -3.51261, -0.00957274, 12.7003)
+visible = false
 
 [node name="vehicle-truck-purple" parent="." unique_id=1373203257 instance=ExtResource("10_p3c1o")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -23.7772, -0.143123, -13.5596)
+visible = false
+
+[node name="StaticProps" type="MeshInstance3D" parent="." unique_id=94885159]
+mesh = ExtResource("6_a8y0u")
 
 [node name="vehicle-truck-red" parent="." unique_id=1524379599 instance=ExtResource("11_wocnk")]
 transform = Transform3D(-0.913034, 0, 0.407884, 0, 1, 0, -0.407884, 0, -0.913034, -1.36138, -0.148564, -23.8)
+visible = false
 
 [node name="Vehicle" parent="." unique_id=1867641805 instance=ExtResource("7_o6xl0")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, 0, 5)
 
-[node name="TrackPath" type="Path3D" parent="."]
+[node name="TrackPath" type="Path3D" parent="." unique_id=317956984]
 script = ExtResource("15_path")
 
-[node name="RaceManager" type="Node" parent="." node_paths=PackedStringArray("player_vehicle", "view_camera")]
+[node name="RaceManager" type="Node" parent="." unique_id=1943821306 node_paths=PackedStringArray("player_vehicle", "view_camera")]
 script = ExtResource("12_race")
 player_vehicle = NodePath("../Vehicle")
 view_camera = NodePath("../View")
 
-[node name="GhostRecorder" type="Node" parent="RaceManager" node_paths=PackedStringArray("race_manager")]
+[node name="GhostRecorder" type="Node" parent="RaceManager" unique_id=1406031882 node_paths=PackedStringArray("race_manager")]
 script = ExtResource("18_ghost")
 race_manager = NodePath("..")
 
-[node name="RaceHUD" parent="." node_paths=PackedStringArray("race_manager", "view_camera") instance=ExtResource("13_hud")]
+[node name="RaceHUD" parent="." unique_id=1392134564 node_paths=PackedStringArray("race_manager", "view_camera") instance=ExtResource("13_hud")]
 race_manager = NodePath("../RaceManager")
 view_camera = NodePath("../View")
 
-[node name="Checkpoints" type="Node3D" parent="."]
+[node name="VirtualJoysticks" parent="." unique_id=1765696229 node_paths=PackedStringArray("race_manager") instance=ExtResource("19_joysticks")]
+race_manager = NodePath("../RaceManager")
 
-[node name="FinishGate" type="Area3D" parent="Checkpoints" node_paths=PackedStringArray("race_manager")]
+[node name="Checkpoints" type="Node3D" parent="." unique_id=276758801]
+
+[node name="FinishGate" type="Area3D" parent="Checkpoints" unique_id=160740159 node_paths=PackedStringArray("race_manager")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.75, 1, 1.5)
 collision_layer = 0
 collision_mask = 8
@@ -113,21 +124,20 @@ script = ExtResource("14_ckpt")
 checkpoint_index = -1
 race_manager = NodePath("../../RaceManager")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Checkpoints/FinishGate"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Checkpoints/FinishGate" unique_id=452938854]
 shape = SubResource("BoxShape3D_finish")
 
-[node name="Checkpoint1" type="Area3D" parent="Checkpoints" node_paths=PackedStringArray("race_manager")]
+[node name="Checkpoint1" type="Area3D" parent="Checkpoints" unique_id=1716994960 node_paths=PackedStringArray("race_manager")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.75, 1, 18.73)
 collision_layer = 0
 collision_mask = 8
 script = ExtResource("14_ckpt")
-checkpoint_index = 0
 race_manager = NodePath("../../RaceManager")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Checkpoints/Checkpoint1"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Checkpoints/Checkpoint1" unique_id=115030890]
 shape = SubResource("BoxShape3D_sector1")
 
-[node name="Checkpoint2" type="Area3D" parent="Checkpoints" node_paths=PackedStringArray("race_manager")]
+[node name="Checkpoint2" type="Area3D" parent="Checkpoints" unique_id=1101095983 node_paths=PackedStringArray("race_manager")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18.73, 1, -11.24)
 collision_layer = 0
 collision_mask = 8
@@ -135,10 +145,10 @@ script = ExtResource("14_ckpt")
 checkpoint_index = 1
 race_manager = NodePath("../../RaceManager")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Checkpoints/Checkpoint2"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Checkpoints/Checkpoint2" unique_id=592376839]
 shape = SubResource("BoxShape3D_sector2")
 
-[node name="Checkpoint3" type="Area3D" parent="Checkpoints" node_paths=PackedStringArray("race_manager")]
+[node name="Checkpoint3" type="Area3D" parent="Checkpoints" unique_id=278656655 node_paths=PackedStringArray("race_manager")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.75, 1, -11.24)
 collision_layer = 0
 collision_mask = 8
@@ -146,5 +156,5 @@ script = ExtResource("14_ckpt")
 checkpoint_index = 2
 race_manager = NodePath("../../RaceManager")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Checkpoints/Checkpoint3"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Checkpoints/Checkpoint3" unique_id=745657521]
 shape = SubResource("BoxShape3D_sector3")

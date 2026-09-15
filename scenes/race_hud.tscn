@@ -1,6 +1,7 @@
-[gd_scene load_steps=8 format=3 uid="uid://c3f5g8p7k4m1n"]
+[gd_scene load_steps=9 format=3 uid="uid://c3f5g8p7k4m1n"]
 
 [ext_resource type="Script" path="res://scripts/race_hud.gd" id="1_hud"]
+[ext_resource type="Script" path="res://scripts/race_audio.gd" id="2_audio"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_lap"]
 content_margin_left = 22.0
@@ -570,3 +571,6 @@ theme_override_styles/normal = SubResource("StyleBoxFlat_btn_normal")
 theme_override_styles/hover = SubResource("StyleBoxFlat_btn_hover")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_btn_hover")
 text = "TITLE SCREEN"
+
+[node name="RaceAudio" type="Node" parent="."]
+script = ExtResource("2_audio")
