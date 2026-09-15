@@ -2,8 +2,8 @@ extends Control
 
 @export_file("*.tscn") var main_scene_path: String = "res://scenes/main.tscn"
 
-# UI Header & Mode
-@onready var mode_banner: PanelContainer = %ModeBanner
+# UI Header & Mode Caption
+@onready var mode_banner: VBoxContainer = %ModeBanner
 @onready var mode_label: Label = %ModeLabel
 
 # Car Chooser UI Nodes
@@ -17,6 +17,7 @@ extends Control
 @onready var color_swatch: ColorRect = %ColorSwatch
 @onready var color_status_label: Label = %ColorStatusLabel
 @onready var pagination_container: HBoxContainer = %PaginationContainer
+@onready var car_tabs_container: HBoxContainer = %CarTabsContainer
 
 # Action buttons & loading
 @onready var connect_button: WeBumpConnectButton = %WeBumpConnectButton
@@ -39,6 +40,7 @@ var _preview_nameplate: Label3D = null
 var _drag_start_x: float = 0.0
 var _is_dragging: bool = false
 var _turntable_auto_spin: bool = true
+var _car_tab_buttons: Array[Button] = []
 
 func _ready() -> void:
 	_audio = RaceAudio.new()
@@ -48,9 +50,9 @@ func _ready() -> void:
 	button_container.visible = true
 	hint_label.visible = true
 	
-	# Offline races are available without a connection.
+	# Offline races are immediately available
 	play_button.disabled = false
-	play_button.text = "Start Race"
+	play_button.text = "START RACE ▶▶"
 	
 	_setup_mode_display()
 	_setup_car_chooser()
@@ -76,45 +78,64 @@ func _setup_mode_display() -> void:
 	else:
 		is_mock = is_editor
 	
+	# Only display a caption if currently in mock mode
 	if is_mock:
 		mode_banner.visible = true
 		if is_editor:
-			mode_label.text = "🛠️ MOCK MODE (EDITOR) — SIMULATED API"
-			hint_label.text = "Editor Mock Mode: Connect simulates a local weBump player"
+			mode_label.text = "🛠️ Mock Mode (Editor) — Simulated API"
 		else:
-			mode_label.text = "🛠️ MOCK MODE — SIMULATED API"
-			hint_label.text = "Mock Mode active: simulated weBump player session"
-		mode_label.add_theme_color_override("font_color", Color(1.0, 0.72, 0.0, 1.0))
-		hint_label.add_theme_color_override("font_color", Color(0.75, 0.7, 0.6, 1.0))
+			mode_label.text = "🛠️ Mock Mode — Simulated API"
+		mode_label.add_theme_color_override("font_color", Color(1.0, 0.839, 0.0, 0.9))
+		hint_label.text = "Connect to weBump to sync your profile & custom colors"
+		hint_label.add_theme_color_override("font_color", Color(0.55, 0.62, 0.75, 1.0))
 	else:
-		mode_banner.visible = true
-		mode_label.text = "🌐 LIVE API — api.webump.app"
-		mode_label.add_theme_color_override("font_color", Color(0.0, 0.89, 1.0, 1.0))
-		hint_label.text = "Start a demo race, or connect your weBump profile"
-		hint_label.add_theme_color_override("font_color", Color(0.55, 0.6, 0.7, 1.0))
+		mode_banner.visible = false
+		hint_label.text = "Connect to weBump to sync your profile & custom colors"
+		hint_label.add_theme_color_override("font_color", Color(0.55, 0.62, 0.75, 1.0))
 
 # ===================================================================
-# TOUCH-FRIENDLY CAR CHOOSER
+# SAKURAI ARCADE CAR CHOOSER
 # ===================================================================
 func _setup_car_chooser() -> void:
-	# 1. Determine starting car index from saved state or default
 	var initial_id: String = CarPresets.get_selected_car()
 	_current_car_index = CarPresets.get_preset_index(initial_id)
 	
-	# 2. Connect large touch navigation buttons with sound
 	prev_car_button.pressed.connect(_on_prev_car_pressed)
 	next_car_button.pressed.connect(_on_next_car_pressed)
 	prev_car_button.mouse_entered.connect(func(): if _audio: _audio.play_hover())
 	next_car_button.mouse_entered.connect(func(): if _audio: _audio.play_hover())
 	
-	# 3. Touch drag / swipe gesture receiver on preview card
+	# Direct swipe/drag gestures on preview showroom card
 	preview_card.gui_input.connect(_on_preview_gui_input)
 	
-	# 4. Build pagination dots
+	_build_car_tabs()
 	_build_pagination_dots()
-	
-	# 5. Load and display selected vehicle
 	_update_car_display(false)
+
+func _build_car_tabs() -> void:
+	for child in car_tabs_container.get_children():
+		child.queue_free()
+	_car_tab_buttons.clear()
+	
+	var short_names = ["Cab", "Sport", "Hauler", "Bug", "Cycle"]
+	for i in range(CarPresets.PRESETS.size()):
+		var btn = Button.new()
+		var tab_name = short_names[i] if i < short_names.size() else "V%d" % (i + 1)
+		btn.text = tab_name
+		btn.custom_minimum_size = Vector2(0, 34)
+		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btn.focus_mode = Control.FOCUS_NONE
+		btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		btn.add_theme_font_size_override("font_size", 12)
+		
+		var idx = i
+		btn.pressed.connect(func():
+			if _audio: _audio.play_click()
+			_select_car_index(idx)
+		)
+		btn.mouse_entered.connect(func(): if _audio: _audio.play_hover())
+		car_tabs_container.add_child(btn)
+		_car_tab_buttons.append(btn)
 
 func _build_pagination_dots() -> void:
 	for child in pagination_container.get_children():
@@ -122,26 +143,26 @@ func _build_pagination_dots() -> void:
 	
 	for i in range(CarPresets.PRESETS.size()):
 		var dot_btn = Button.new()
-		dot_btn.custom_minimum_size = Vector2(28, 28)
+		dot_btn.custom_minimum_size = Vector2(24, 24)
 		dot_btn.focus_mode = Control.FOCUS_NONE
 		dot_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		dot_btn.flat = true
 		
-		# Build flat stylebox for the dot
 		var dot_panel = Panel.new()
 		dot_panel.name = "DotPill"
 		dot_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		dot_panel.anchor_left = 0.1
-		dot_panel.anchor_right = 0.9
+		dot_panel.anchor_left = 0.15
+		dot_panel.anchor_right = 0.85
 		dot_panel.anchor_top = 0.35
 		dot_panel.anchor_bottom = 0.65
 		
 		var sb = StyleBoxFlat.new()
-		sb.corner_radius_top_left = 4
-		sb.corner_radius_top_right = 4
-		sb.corner_radius_bottom_right = 4
-		sb.corner_radius_bottom_left = 4
-		sb.bg_color = Color(0.25, 0.3, 0.42, 0.7)
+		sb.corner_radius_top_left = 3
+		sb.corner_radius_top_right = 3
+		sb.corner_radius_bottom_right = 3
+		sb.corner_radius_bottom_left = 3
+		sb.shadow_size = 0
+		sb.bg_color = Color(0.20, 0.25, 0.36, 0.7)
 		dot_panel.add_theme_stylebox_override("panel", sb)
 		dot_btn.add_child(dot_panel)
 		
@@ -172,66 +193,52 @@ func _select_car_index(idx: int) -> void:
 	_update_car_display(true)
 
 func _on_preview_gui_input(event: InputEvent) -> void:
-	# Mobile Touchscreen Swipe Gestures
+	# Touchscreen drag rotation
 	if event is InputEventScreenTouch:
 		if event.pressed:
 			_is_dragging = true
-			_drag_start_x = event.position.x
 			_turntable_auto_spin = false
 		else:
-			if _is_dragging:
-				_is_dragging = false
-				_turntable_auto_spin = true
-				var delta_x = event.position.x - _drag_start_x
-				if delta_x < -35.0:
-					_on_next_car_pressed()
-				elif delta_x > 35.0:
-					_on_prev_car_pressed()
+			_is_dragging = false
+			_turntable_auto_spin = true
 	
 	elif event is InputEventScreenDrag:
-		# Interactive turntable drag feedback under finger
 		if turntable != null:
-			turntable.rotate_y(event.relative.x * 0.015)
+			turntable.rotate_y(event.relative.x * 0.012)
 	
-	# Desktop Mouse Gestures (for testing)
+	# Mouse drag rotation
 	elif event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			if event.pressed:
 				_is_dragging = true
-				_drag_start_x = event.position.x
 				_turntable_auto_spin = false
 			else:
-				if _is_dragging:
-					_is_dragging = false
-					_turntable_auto_spin = true
-					var delta_x = event.position.x - _drag_start_x
-					if delta_x < -35.0:
-						_on_next_car_pressed()
-					elif delta_x > 35.0:
-						_on_prev_car_pressed()
+				_is_dragging = false
+				_turntable_auto_spin = true
 	
 	elif event is InputEventMouseMotion:
 		if _is_dragging and turntable != null:
-			turntable.rotate_y(event.relative.x * 0.015)
+			turntable.rotate_y(event.relative.x * 0.012)
 
 func _update_car_display(animate: bool) -> void:
 	var preset = CarPresets.PRESETS[_current_car_index]
 	var car_id: String = preset["id"]
 	
-	# 1. Update text metadata (clean vehicle name, no blurbs)
+	# 1. Update vehicle name
 	car_name_label.text = preset["name"]
 	
-	# 2. Persist selection immediately across memory, file, and WeBumpAPI
+	# 2. Persist selection
 	CarPresets.set_selected_car(car_id)
 	
-	# 3. Swap 3D preview model
+	# 3. Swap 3D model with punch-scale juice
 	_load_preview_model(preset, animate)
 	
 	# 4. Update color indicator & swatch
 	_update_color_swatch()
 	
-	# 5. Update pagination dots
+	# 5. Update pagination dots & tabs
 	_update_pagination_dots()
+	_update_car_tabs()
 
 func _load_preview_model(preset: Dictionary, animate: bool) -> void:
 	if _preview_model_inst != null:
@@ -247,7 +254,6 @@ func _load_preview_model(preset: Dictionary, animate: bool) -> void:
 	_preview_model_inst = scn.instantiate()
 	model_pivot.add_child(_preview_model_inst)
 	
-	# Paint panels may be split across several meshes (such as the motorcycle fork).
 	var paint_meshes = _preview_model_inst.find_children("*", "MeshInstance3D", true, false)
 	if not paint_meshes.is_empty():
 		var col = _get_current_paint_color(preset)
@@ -261,13 +267,13 @@ func _load_preview_model(preset: Dictionary, animate: bool) -> void:
 		for mesh in paint_meshes:
 			(mesh as MeshInstance3D).material_override = _preview_paint_mat
 	
-	# Add overhead billboard nameplate in preview
 	_update_preview_nameplate()
 	
+	# Sakurai punch-scale pop on vehicle swap
 	if animate and model_pivot != null:
-		model_pivot.scale = Vector2(0.75, 0.75).x * Vector3.ONE
+		model_pivot.scale = Vector3(0.8, 0.8, 0.8)
 		var tw = create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-		tw.tween_property(model_pivot, "scale", Vector3.ONE, 0.22)
+		tw.tween_property(model_pivot, "scale", Vector3.ONE, 0.2)
 
 func _update_preview_nameplate() -> void:
 	var name_text = "Player"
@@ -281,7 +287,7 @@ func _update_preview_nameplate() -> void:
 		_preview_nameplate.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		_preview_nameplate.position = Vector3(0, 1.45, 0)
 		_preview_nameplate.font_size = 24
-		_preview_nameplate.outline_size = 8
+		_preview_nameplate.outline_size = 6
 		_preview_nameplate.outline_modulate = Color(0.04, 0.05, 0.08, 0.95)
 		_preview_nameplate.shaded = false
 		_preview_nameplate.double_sided = true
@@ -311,10 +317,10 @@ func _update_color_swatch() -> void:
 	
 	if is_auth:
 		color_status_label.text = "🎨 weBump Color: %s" % hex_str
-		color_status_label.add_theme_color_override("font_color", Color(0.06, 0.85, 0.52, 1.0))
+		color_status_label.add_theme_color_override("font_color", Color(0.165, 0.690, 0.388, 1.0)) # weBump Brand Green
 	else:
 		color_status_label.text = "Default Paint • Connect to sync"
-		color_status_label.add_theme_color_override("font_color", Color(0.65, 0.7, 0.8, 1.0))
+		color_status_label.add_theme_color_override("font_color", Color(0.68, 0.74, 0.84, 1.0))
 
 func _update_pagination_dots() -> void:
 	var dots = pagination_container.get_children()
@@ -325,8 +331,31 @@ func _update_pagination_dots() -> void:
 			var sb = panel.get_theme_stylebox("panel") as StyleBoxFlat
 			if sb != null:
 				var is_active = (i == _current_car_index)
-				sb.bg_color = Color(0.0, 0.89, 1.0, 1.0) if is_active else Color(0.25, 0.3, 0.42, 0.5)
+				sb.bg_color = Color(1.0, 0.553, 0.157, 1.0) if is_active else Color(0.20, 0.25, 0.36, 0.6)
 				dot.custom_minimum_size = Vector2(28, 24) if is_active else Vector2(16, 24)
+
+func _update_car_tabs() -> void:
+	for i in range(_car_tab_buttons.size()):
+		var btn = _car_tab_buttons[i]
+		var is_active = (i == _current_car_index)
+		
+		var sb = StyleBoxFlat.new()
+		sb.set_corner_radius_all(6)
+		sb.shadow_size = 0
+		if is_active:
+			sb.bg_color = Color(0.18, 0.24, 0.36, 1.0)
+			sb.set_border_width_all(2)
+			sb.border_color = Color(1.0, 0.553, 0.157, 1.0) # weBump Orange
+			btn.add_theme_color_override("font_color", Color.WHITE)
+		else:
+			sb.bg_color = Color(0.08, 0.10, 0.16, 0.85)
+			sb.set_border_width_all(1)
+			sb.border_color = Color(0.18, 0.23, 0.34, 0.6)
+			btn.add_theme_color_override("font_color", Color(0.65, 0.72, 0.82, 1.0))
+		
+		btn.add_theme_stylebox_override("normal", sb)
+		btn.add_theme_stylebox_override("hover", sb)
+		btn.add_theme_stylebox_override("pressed", sb)
 
 # ===================================================================
 # CONNECTION HANDSHAKE & EVENT HANDLING
@@ -338,13 +367,12 @@ func _on_connection_started() -> void:
 	
 	if is_mock:
 		hint_label.text = "Simulating weBump handshake in Editor (Mock Mode)…"
-		hint_label.add_theme_color_override("font_color", Color(1.0, 0.75, 0.1, 1.0))
+		hint_label.add_theme_color_override("font_color", Color(1.0, 0.839, 0.0, 1.0))
 	else:
 		hint_label.text = "Connecting to weBump API (OAuth PKCE)…"
-		hint_label.add_theme_color_override("font_color", Color(0.0, 0.89, 1.0, 1.0))
+		hint_label.add_theme_color_override("font_color", Color(0.235, 0.561, 0.949, 1.0))
 
 func _on_connection_changed(connected: bool, profile: Dictionary) -> void:
-	# Live update paint color & nameplate on the car chooser preview
 	var preset = CarPresets.PRESETS[_current_car_index]
 	var active_color = _get_current_paint_color(preset)
 	if _preview_paint_mat != null:
@@ -356,25 +384,25 @@ func _on_connection_changed(connected: bool, profile: Dictionary) -> void:
 		if _audio:
 			_audio.play_connect_success()
 		play_button.disabled = false
-		play_button.text = "Start Race"
+		play_button.text = "START RACE ▶▶"
 		var p_name = profile.get("display_name", "Player")
 		var is_mock = profile.get("is_mock", false)
 		
 		if is_mock:
 			hint_label.text = "[MOCK MODE] Connected as %s • Ready to Race!" % p_name
-			hint_label.add_theme_color_override("font_color", Color(0.2, 0.9, 0.55, 1.0))
+			hint_label.add_theme_color_override("font_color", Color(0.165, 0.690, 0.388, 1.0))
 		else:
 			hint_label.text = "Connected as %s • Ready to Race!" % p_name
-			hint_label.add_theme_color_override("font_color", Color(0.06, 0.85, 0.52, 1.0))
+			hint_label.add_theme_color_override("font_color", Color(0.165, 0.690, 0.388, 1.0))
 		
-		# Animate start button unlock
+		# Animate start button bounce
 		play_button.pivot_offset = play_button.size * 0.5
 		var tween = create_tween()
 		tween.tween_property(play_button, "scale", Vector2(1.04, 1.04), 0.12).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 		tween.tween_property(play_button, "scale", Vector2(1.0, 1.0), 0.12).set_trans(Tween.TRANS_SINE)
 	else:
 		play_button.disabled = false
-		play_button.text = "Start Race"
+		play_button.text = "START RACE ▶▶"
 		_setup_mode_display()
 
 func _on_play_pressed() -> void:
@@ -384,11 +412,9 @@ func _on_play_pressed() -> void:
 	if _audio:
 		_audio.play_go()
 
-	# Guarantee selected car preset is committed before scene transition
 	var preset = CarPresets.PRESETS[_current_car_index]
 	var car_id: String = preset["id"]
 	CarPresets.set_selected_car(car_id)
-	print("[TitleScreen] Car '%s' confirmed and saved for main race." % car_id)
 
 	_is_loading = true
 	button_container.visible = false
@@ -409,9 +435,8 @@ func _on_play_pressed() -> void:
 		push_error("Failed to start multithreaded load for %s: %s" % [main_scene_path, err])
 
 func _process(delta: float) -> void:
-	# Turntable smooth showroom rotation
 	if turntable != null and _turntable_auto_spin:
-		turntable.rotate_y(delta * 0.7)
+		turntable.rotate_y(delta * 0.6)
 	
 	if not _is_loading:
 		return
