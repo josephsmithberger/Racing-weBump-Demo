@@ -30,9 +30,7 @@ var _audio: RaceAudio
 @onready var results_screen: Control = %ResultsScreen
 @onready var results_card: PanelContainer = %ResultsCard
 @onready var result_total_time: Label = %ResultTotalTime
-@onready var result_lap1: Label = %ResultLap1
-@onready var result_lap2: Label = %ResultLap2
-@onready var result_lap3: Label = %ResultLap3
+@onready var leaderboard_rows: VBoxContainer = %LeaderboardRows
 @onready var result_best_lap: Label = %ResultBestLap
 @onready var ghost_sync_label: Label = %GhostSyncLabel
 @onready var retry_button: Button = %RetryButton
@@ -75,6 +73,12 @@ func _ready() -> void:
 	
 	_update_lap_display(1, 3)
 	best_label.text = "BEST: --:--.--"
+
+func _process(_delta: float) -> void:
+	if results_screen.visible and race_manager:
+		var recorder := race_manager.get_node_or_null("GhostRecorder") as GhostRecorder
+		if recorder:
+			ghost_sync_label.text = recorder.result_message
 
 func format_time(seconds: float) -> String:
 	if seconds < 0.0:
@@ -238,6 +242,8 @@ func _on_final_lap_started() -> void:
 
 func _on_race_finished(total_time: float, lap_times: Array, best_lap_time: float) -> void:
 	_audio.play_finish()
+	lap_badge.hide()
+	timer_badge.hide()
 	countdown_container.visible = false
 	final_lap_banner.visible = false
 	split_toast.visible = false
@@ -284,52 +290,22 @@ func _show_results(total_time: float, lap_times: Array, best_lap_time: float) ->
 	results_screen.visible = true
 	results_screen.modulate.a = 0.0
 	
-	# Populate results labels
-	result_total_time.text = "TOTAL TIME: " + format_time(total_time)
-	
-	if lap_times.size() > 0:
-		result_lap1.text = "LAP 1:  " + format_time(lap_times[0])
-		if abs(lap_times[0] - best_lap_time) < 0.001:
-			result_lap1.text += "  ★ BEST"
-			result_lap1.modulate = Color("#FFEA00")
-	if lap_times.size() > 1:
-		result_lap2.text = "LAP 2:  " + format_time(lap_times[1])
-		if abs(lap_times[1] - best_lap_time) < 0.001:
-			result_lap2.text += "  ★ BEST"
-			result_lap2.modulate = Color("#FFEA00")
-	if lap_times.size() > 2:
-		result_lap3.text = "LAP 3:  " + format_time(lap_times[2])
-		if abs(lap_times[2] - best_lap_time) < 0.001:
-			result_lap3.text += "  ★ BEST"
-			result_lap3.modulate = Color("#FFEA00")
-	
-	result_best_lap.text = "BEST LAP: " + format_time(best_lap_time)
-	
-	if ghost_sync_label != null:
-		var car_id = CarPresets.get_selected_car()
-		var preset = CarPresets.get_preset_by_id(car_id)
-		var car_name = preset.get("name", "Vehicle")
-		var is_new_record = true
-		var previous_best_ms = -1
-		var api = CarPresets.get_api()
-		if api:
-			var saved_save = api.local_state.get("racing_save", {})
-			if typeof(saved_save) == TYPE_DICTIONARY:
-				previous_best_ms = int(saved_save.get("best_3lap_ms", -1))
-			
-			var total_time_ms = int(total_time * 1000.0)
-			if previous_best_ms > 0 and total_time_ms > previous_best_ms:
-				is_new_record = false
-		
-		if is_new_record:
-			var record_sec: int = int(round(total_time))
-			ghost_sync_label.text = "🏆 NEW RECORD! %ds highscore saved to weBump!" % record_sec
-			ghost_sync_label.add_theme_color_override("font_color", Color(0.2, 1.0, 0.55, 1.0))
-		else:
-			var prev_sec: int = int(round(float(previous_best_ms) / 1000.0))
-			ghost_sync_label.text = "☁️ %s Ghost (Record: %ds preserved)" % [car_name, prev_sec]
-			ghost_sync_label.add_theme_color_override("font_color", Color(0.65, 0.75, 0.85, 1.0))
-	
+	var player_position := 1
+	for row in race_manager.leaderboard:
+		if row.id == "player":
+			player_position = row.position
+	result_total_time.text = "YOU PLACED %d / %d  ·  %s" % [player_position, race_manager.leaderboard.size(), format_time(total_time)]
+	for child in leaderboard_rows.get_children():
+		child.queue_free()
+	for row in race_manager.leaderboard:
+		_add_leaderboard_row(row)
+	var splits: PackedStringArray = []
+	for lap in lap_times:
+		splits.append(format_time(lap))
+	result_best_lap.text = "YOUR LAPS  " + "  /  ".join(splits) + "\nBEST LAP  " + format_time(best_lap_time)
+	var recorder := race_manager.get_node_or_null("GhostRecorder") as GhostRecorder
+	ghost_sync_label.text = recorder.result_message if recorder else ""
+
 	# Animate card sliding in with diagonal spring overshoot
 	results_card.pivot_offset = results_card.size / 2.0
 	results_card.scale = Vector2(0.6, 0.6)
@@ -342,6 +318,54 @@ func _show_results(total_time: float, lap_times: Array, best_lap_time: float) ->
 	card_tween.tween_property(results_card, "rotation", 0.0, 0.35)
 	
 	retry_button.grab_focus()
+
+func _add_leaderboard_row(row: Dictionary) -> void:
+	var panel := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.08, 0.23, 0.28, 1) if row.id == "player" else Color(0.09, 0.11, 0.17, 1)
+	style.content_margin_left = 14
+	style.content_margin_right = 14
+	style.content_margin_top = 9
+	style.content_margin_bottom = 9
+	style.set_corner_radius_all(8)
+	panel.add_theme_stylebox_override("panel", style)
+	var columns := HBoxContainer.new()
+	columns.add_theme_constant_override("separation", 12)
+	panel.add_child(columns)
+	var rank := Label.new()
+	rank.text = "%02d" % row.position
+	rank.custom_minimum_size.x = 38
+	rank.add_theme_font_size_override("font_size", 24)
+	columns.add_child(rank)
+	var swatch := ColorRect.new()
+	swatch.color = row.color
+	swatch.custom_minimum_size = Vector2(6, 40)
+	columns.add_child(swatch)
+	var identity := VBoxContainer.new()
+	identity.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	columns.add_child(identity)
+	var driver := Label.new()
+	driver.text = row.display_name + (" (YOU)" if row.id == "player" else "")
+	driver.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	driver.add_theme_font_size_override("font_size", 21)
+	identity.add_child(driver)
+	var car := Label.new()
+	car.text = "%s · %s" % [CarPresets.get_preset_by_id(row.car_body).name, row.kind]
+	car.add_theme_font_size_override("font_size", 13)
+	car.modulate = Color(0.68, 0.75, 0.83)
+	identity.add_child(car)
+	var status := Label.new()
+	status.text = row.status
+	status.custom_minimum_size.x = 95
+	status.modulate = Color.GOLD if row.status == "Estimated" else Color(0.68, 0.75, 0.83)
+	columns.add_child(status)
+	var time := Label.new()
+	time.text = ("≈ " if row.status == "Estimated" else "") + format_time(row.time)
+	time.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	time.custom_minimum_size.x = 140
+	time.add_theme_font_size_override("font_size", 22)
+	columns.add_child(time)
+	leaderboard_rows.add_child(panel)
 
 func _on_button_hover() -> void:
 	_audio.play_hover()

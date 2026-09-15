@@ -11,6 +11,8 @@ signal capsule_saved(value: Dictionary)
 signal capsule_loaded(value: Dictionary)
 signal showcase_saved(value: Dictionary)
 signal showcase_loaded(value: Dictionary)
+signal visitors_updated(cards: Array)
+signal request_failed(operation: String, status: int)
 
 const CONFIG_PATH: String = "res://config.json"
 const SAVE_STATE_PATH: String = "user://webump_state.json"
@@ -34,19 +36,16 @@ var selected_car_body: String = "truck_yellow"
 var local_state: Dictionary = {}
 var local_capsule: Dictionary = {}
 var local_showcase: Dictionary = {}
-var current_etag: String = "\"1\""
+var current_etag: String = ""
+var visitor_cards: Array = []
+var _handoff_pkce: Dictionary = {}
+var _write_queue: Array[Dictionary] = []
+var _writing := false
+var _session_generation := 0
 
 var _current_verifier: String = ""
 var _current_state: String = ""
 var _http_request: HTTPRequest
-
-func _enter_tree() -> void:
-	if get_tree() and get_tree().root:
-		if get_tree().root.has_node("WeBumpAPI") and get_tree().root.get_node("WeBumpAPI") != self:
-			queue_free()
-			return
-		if get_parent() != get_tree().root:
-			reparent.call_deferred(get_tree().root)
 
 func _get_tree_safe() -> SceneTree:
 	if is_inside_tree() and get_tree():
@@ -120,14 +119,16 @@ func _start_mock_connection() -> void:
 		_complete_mock_auth()
 
 func _complete_mock_auth() -> void:
+	if not is_connecting:
+		return
 	is_connecting = false
 	is_authenticated = true
 	
-	# In editor mock mode, use Maya's profile (#FF3366 Neon Rose) per planning docs
+	# Synthetic player profile; rival identities come from visitor cards.
 	current_player_profile = {
-		"display_name": "Racer Maya",
+		"display_name": "Demo Player",
 		"theme_color": "#FF3366",
-		"player_id": "wb_mock_maya_01",
+		"player_id": "demo-player",
 		"is_mock": true,
 		"mode": "Mock Mode (Editor)",
 		"connected_at": Time.get_datetime_string_from_system()
@@ -183,7 +184,12 @@ func _start_live_oauth_flow() -> void:
 	# On desktop standalone builds, open default browser
 	OS.shell_open(auth_url)
 
-func exchange_authorization_code(code: String) -> void:
+func exchange_authorization_code(code: String, returned_state: String = "") -> void:
+	if _current_state.is_empty() or returned_state != _current_state:
+		is_connecting = false
+		auth_failed.emit("Invalid OAuth callback state")
+		return
+	_current_state = ""
 	if _current_verifier.is_empty():
 		push_error("No PKCE code_verifier found for token exchange.")
 		auth_failed.emit("Missing PKCE code verifier")
@@ -215,8 +221,7 @@ func exchange_authorization_code(code: String) -> void:
 func _on_token_exchange_completed(result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
 	if result != HTTPRequest.RESULT_SUCCESS or response_code != 200:
 		is_connecting = false
-		var err_str = body.get_string_from_utf8()
-		auth_failed.emit("Token exchange failed (HTTP %d): %s" % [response_code, err_str])
+		auth_failed.emit("Token exchange failed (HTTP %d)" % response_code)
 		return
 	
 	var response_json = JSON.parse_string(body.get_string_from_utf8())
@@ -252,8 +257,7 @@ func fetch_player_profile() -> void:
 func _on_player_profile_completed(result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
 	is_connecting = false
 	if result != HTTPRequest.RESULT_SUCCESS or response_code != 200:
-		var err_str = body.get_string_from_utf8()
-		auth_failed.emit("Profile fetch failed (HTTP %d): %s" % [response_code, err_str])
+		auth_failed.emit("Profile fetch failed (HTTP %d)" % response_code)
 		return
 	
 	var profile_json = JSON.parse_string(body.get_string_from_utf8())
@@ -262,6 +266,7 @@ func _on_player_profile_completed(result: int, response_code: int, _headers: Pac
 		current_player_profile["is_mock"] = false
 		current_player_profile["mode"] = "Live API"
 		is_authenticated = true
+		await get_state("racing_save")
 		auth_succeeded.emit(current_player_profile, false)
 	else:
 		auth_failed.emit("Invalid profile JSON received.")
@@ -272,6 +277,11 @@ func disconnect_player() -> void:
 	access_token = ""
 	refresh_token = ""
 	current_player_profile.clear()
+	visitor_cards.clear()
+	_handoff_pkce.clear()
+	_session_generation += 1
+	current_etag = ""
+	visitors_updated.emit(visitor_cards)
 	session_disconnected.emit()
 
 # -------------------------------------------------------------------
@@ -333,278 +343,6 @@ func get_player_theme_color_hex() -> String:
 	var c = get_player_theme_color()
 	return "#" + c.to_html(false)
 
-# -------------------------------------------------------------------
-# Platform State & Ghost API (/v1/me/state/{key})
-# -------------------------------------------------------------------
-func get_state(key: String, callback: Callable = Callable()) -> void:
-	if is_mock_mode:
-		var val = local_state.get(key, null)
-		state_loaded.emit(key, val)
-		if callback.is_valid():
-			callback.call(true, val)
-		return
-	
-	if access_token.is_empty():
-		if callback.is_valid():
-			callback.call(false, null)
-		return
-	
-	var url = "%s/v1/me/state/%s" % [api_origin, key.uri_encode()]
-	var headers = [
-		"Authorization: Bearer %s" % access_token,
-		"Accept: application/json"
-	]
-	var http = HTTPRequest.new()
-	add_child(http)
-	http.request_completed.connect(func(result: int, response_code: int, response_headers: PackedStringArray, body: PackedByteArray):
-		http.queue_free()
-		if result == HTTPRequest.RESULT_SUCCESS and response_code == 200:
-			for h in response_headers:
-				if h.to_lower().begins_with("etag:"):
-					current_etag = h.substr(5).strip_edges()
-			var json = JSON.parse_string(body.get_string_from_utf8())
-			var val = null
-			if typeof(json) == TYPE_DICTIONARY and json.has("value"):
-				val = json["value"]
-			state_loaded.emit(key, val)
-			if callback.is_valid():
-				callback.call(true, val)
-		else:
-			if callback.is_valid():
-				callback.call(false, null)
-	)
-	http.request(url, headers, HTTPClient.METHOD_GET)
-
-func put_state(key: String, value: Variant, callback: Callable = Callable()) -> void:
-	local_state[key] = value
-	_save_local_state()
-	
-	if is_mock_mode:
-		print("[WeBumpAPI Mock] Persisted state key '%s' (%s)" % [key, str(value).substr(0, 60)])
-		state_saved.emit(key, value)
-		if callback.is_valid():
-			callback.call(true, value)
-		return
-	
-	if access_token.is_empty():
-		if callback.is_valid():
-			callback.call(false, null)
-		return
-	
-	var url = "%s/v1/me/state/%s" % [api_origin, key.uri_encode()]
-	var headers = [
-		"Authorization: Bearer %s" % access_token,
-		"Content-Type: application/json",
-		"Accept: application/json",
-		"If-Match: %s" % current_etag
-	]
-	var payload = {
-		"value": value
-	}
-	var json_body = JSON.stringify(payload)
-	var http = HTTPRequest.new()
-	add_child(http)
-	http.request_completed.connect(func(result: int, response_code: int, response_headers: PackedStringArray, _body: PackedByteArray):
-		http.queue_free()
-		if result == HTTPRequest.RESULT_SUCCESS and (response_code == 200 or response_code == 201):
-			for h in response_headers:
-				if h.to_lower().begins_with("etag:"):
-					current_etag = h.substr(5).strip_edges()
-			state_saved.emit(key, value)
-			if callback.is_valid():
-				callback.call(true, value)
-		else:
-			push_warning("[WeBumpAPI] put_state failed with code %d" % response_code)
-			if callback.is_valid():
-				callback.call(false, null)
-	)
-	http.request(url, headers, HTTPClient.METHOD_PUT, json_body)
-
-func save_ghost_telemetry(ghost_data: Dictionary) -> void:
-	print("[WeBumpAPI] Saving ghost telemetry with car_body: '%s' (%d samples)..." % [
-		ghost_data.get("car_body", "unknown"),
-		ghost_data.get("samples", []).size()
-	])
-	put_state("ghost_telemetry", ghost_data)
-
-# -------------------------------------------------------------------
-# Public Capsule & Showcase APIs (/v1/me/capsule & /v1/me/showcase)
-# Public data shown on the weBump app upon bumping or on profile shelf
-# -------------------------------------------------------------------
-func get_capsule(callback: Callable = Callable()) -> void:
-	if is_mock_mode:
-		capsule_loaded.emit(local_capsule)
-		if callback.is_valid():
-			callback.call(true, local_capsule)
-		return
-	
-	if access_token.is_empty():
-		if callback.is_valid():
-			callback.call(false, {})
-		return
-	
-	var url = "%s/v1/me/capsule" % api_origin
-	var headers = [
-		"Authorization: Bearer %s" % access_token,
-		"Accept: application/json"
-	]
-	var http = HTTPRequest.new()
-	add_child(http)
-	http.request_completed.connect(func(result: int, response_code: int, response_headers: PackedStringArray, body: PackedByteArray):
-		http.queue_free()
-		if result == HTTPRequest.RESULT_SUCCESS and response_code == 200:
-			for h in response_headers:
-				if h.to_lower().begins_with("etag:"):
-					current_etag = h.substr(5).strip_edges()
-			var json = JSON.parse_string(body.get_string_from_utf8())
-			var val: Dictionary = {}
-			if typeof(json) == TYPE_DICTIONARY and json.has("data") and typeof(json["data"]) == TYPE_DICTIONARY:
-				val = json["data"]
-			local_capsule = val
-			local_state["capsule"] = val
-			_save_local_state()
-			capsule_loaded.emit(val)
-			if callback.is_valid():
-				callback.call(true, val)
-		else:
-			if callback.is_valid():
-				callback.call(false, {})
-	)
-	http.request(url, headers, HTTPClient.METHOD_GET)
-
-func put_capsule(value: Dictionary, callback: Callable = Callable()) -> void:
-	local_capsule = value
-	local_state["capsule"] = value
-	_save_local_state()
-	
-	if is_mock_mode:
-		print("[WeBumpAPI Mock] Persisted public capsule: %s" % str(value))
-		capsule_saved.emit(value)
-		if callback.is_valid():
-			callback.call(true, value)
-		return
-	
-	if access_token.is_empty():
-		if callback.is_valid():
-			callback.call(false, {})
-		return
-	
-	var url = "%s/v1/me/capsule" % api_origin
-	var headers = [
-		"Authorization: Bearer %s" % access_token,
-		"Content-Type: application/json",
-		"Accept: application/json",
-		"If-Match: %s" % current_etag
-	]
-	var payload = {
-		"value": value
-	}
-	var json_body = JSON.stringify(payload)
-	var http = HTTPRequest.new()
-	add_child(http)
-	http.request_completed.connect(func(result: int, response_code: int, response_headers: PackedStringArray, _body: PackedByteArray):
-		http.queue_free()
-		if result == HTTPRequest.RESULT_SUCCESS and (response_code == 200 or response_code == 201):
-			for h in response_headers:
-				if h.to_lower().begins_with("etag:"):
-					current_etag = h.substr(5).strip_edges()
-			capsule_saved.emit(value)
-			if callback.is_valid():
-				callback.call(true, value)
-		else:
-			push_warning("[WeBumpAPI] put_capsule failed with code %d" % response_code)
-			if callback.is_valid():
-				callback.call(false, {})
-	)
-	http.request(url, headers, HTTPClient.METHOD_PUT, json_body)
-
-func get_showcase(callback: Callable = Callable()) -> void:
-	if is_mock_mode:
-		showcase_loaded.emit(local_showcase)
-		if callback.is_valid():
-			callback.call(true, local_showcase)
-		return
-	
-	if access_token.is_empty():
-		if callback.is_valid():
-			callback.call(false, {})
-		return
-	
-	var url = "%s/v1/me/showcase" % api_origin
-	var headers = [
-		"Authorization: Bearer %s" % access_token,
-		"Accept: application/json"
-	]
-	var http = HTTPRequest.new()
-	add_child(http)
-	http.request_completed.connect(func(result: int, response_code: int, response_headers: PackedStringArray, body: PackedByteArray):
-		http.queue_free()
-		if result == HTTPRequest.RESULT_SUCCESS and response_code == 200:
-			for h in response_headers:
-				if h.to_lower().begins_with("etag:"):
-					current_etag = h.substr(5).strip_edges()
-			var json = JSON.parse_string(body.get_string_from_utf8())
-			var val: Dictionary = {}
-			if typeof(json) == TYPE_DICTIONARY and json.has("data") and typeof(json["data"]) == TYPE_DICTIONARY:
-				val = json["data"]
-			local_showcase = val
-			local_state["showcase"] = val
-			_save_local_state()
-			showcase_loaded.emit(val)
-			if callback.is_valid():
-				callback.call(true, val)
-		else:
-			if callback.is_valid():
-				callback.call(false, {})
-	)
-	http.request(url, headers, HTTPClient.METHOD_GET)
-
-func put_showcase(value: Dictionary, callback: Callable = Callable()) -> void:
-	local_showcase = value
-	local_state["showcase"] = value
-	_save_local_state()
-	
-	if is_mock_mode:
-		print("[WeBumpAPI Mock] Persisted public showcase: %s" % str(value))
-		showcase_saved.emit(value)
-		if callback.is_valid():
-			callback.call(true, value)
-		return
-	
-	if access_token.is_empty():
-		if callback.is_valid():
-			callback.call(false, {})
-		return
-	
-	var url = "%s/v1/me/showcase" % api_origin
-	var headers = [
-		"Authorization: Bearer %s" % access_token,
-		"Content-Type: application/json",
-		"Accept: application/json",
-		"If-Match: %s" % current_etag
-	]
-	var payload = {
-		"value": value
-	}
-	var json_body = JSON.stringify(payload)
-	var http = HTTPRequest.new()
-	add_child(http)
-	http.request_completed.connect(func(result: int, response_code: int, response_headers: PackedStringArray, _body: PackedByteArray):
-		http.queue_free()
-		if result == HTTPRequest.RESULT_SUCCESS and (response_code == 200 or response_code == 201):
-			for h in response_headers:
-				if h.to_lower().begins_with("etag:"):
-					current_etag = h.substr(5).strip_edges()
-			showcase_saved.emit(value)
-			if callback.is_valid():
-				callback.call(true, value)
-		else:
-			push_warning("[WeBumpAPI] put_showcase failed with code %d" % response_code)
-			if callback.is_valid():
-				callback.call(false, {})
-	)
-	http.request(url, headers, HTTPClient.METHOD_PUT, json_body)
-
 ## Saves the player's highscore in seconds to the public weBump Capsule and Showcase.
 ## Public weBump data shown on the app upon bumping or on profile shelf uses integer seconds.
 func save_public_highscore(total_time_seconds: float, best_lap_seconds: float = 0.0, callback: Callable = Callable()) -> Dictionary:
@@ -639,3 +377,160 @@ func get_public_highscore_seconds() -> int:
 	return -1
 
 
+
+# One transport for game operations; OAuth retains its dedicated request node.
+func _request_json(path: String, method: HTTPClient.Method = HTTPClient.METHOD_GET, payload: Dictionary = {}, etag: String = "") -> Dictionary:
+	if access_token.is_empty():
+		return {"ok": false, "status": 401, "data": {}}
+	var generation := _session_generation
+	var http := HTTPRequest.new()
+	http.timeout = 15.0
+	add_child(http)
+	var headers := PackedStringArray(["Authorization: Bearer " + access_token, "Accept: application/json", "Content-Type: application/json"])
+	if not etag.is_empty():
+		headers.append("If-Match: " + etag)
+	var error := http.request(api_origin + path, headers, method, JSON.stringify(payload) if method != HTTPClient.METHOD_GET else "")
+	if error != OK:
+		http.queue_free()
+		request_failed.emit(path, 0)
+		return {"ok": false, "status": 0, "data": {}}
+	var response: Array = await http.request_completed
+	http.queue_free()
+	if generation != _session_generation:
+		return {"ok": false, "status": 401, "data": {}}
+	var ok: bool = response[0] == HTTPRequest.RESULT_SUCCESS and response[1] >= 200 and response[1] < 300
+	var parsed: Variant = JSON.parse_string(response[3].get_string_from_utf8())
+	ok = ok and parsed is Dictionary
+	var revision := ""
+	if ok:
+		for header in response[2]:
+			if header.to_lower().begins_with("etag:"):
+				revision = header.substr(5).strip_edges()
+	else:
+		request_failed.emit(path, response[1])
+	return {"ok": ok, "status": response[1], "data": parsed if parsed is Dictionary else {}, "etag": revision}
+
+func get_state(key: String, callback: Callable = Callable()) -> void:
+	var ok := true
+	var value: Variant = local_state.get(key)
+	if not is_mock_mode and is_authenticated:
+		var response := await _request_json("/v1/me/state")
+		ok = response.ok
+		if ok:
+			var document: Dictionary = response.data.get("data", {})
+			value = document.get(key)
+			local_state[key] = value
+			_save_local_state()
+	state_loaded.emit(key, value)
+	if callback.is_valid():
+		callback.call(ok, value)
+
+func put_state(key: String, value: Variant, callback: Callable = Callable()) -> void:
+	local_state[key] = value
+	_save_local_state()
+	_queue_write("/v1/me/state/" + key.uri_encode(), value, Callable(), callback, key)
+
+func save_ghost_telemetry(ghost_data: Dictionary) -> void:
+	put_state("ghost_telemetry", ghost_data)
+
+func get_capsule(callback: Callable = Callable()) -> void:
+	await _get_public("capsule", callback)
+
+func get_showcase(callback: Callable = Callable()) -> void:
+	await _get_public("showcase", callback)
+
+func _get_public(resource: String, callback: Callable) -> void:
+	var value: Dictionary = local_capsule if resource == "capsule" else local_showcase
+	var ok := true
+	if not is_mock_mode and is_authenticated:
+		var response := await _request_json("/v1/me/" + resource)
+		ok = response.ok
+		if ok:
+			value = response.data.get("data", {})
+			if resource == "capsule":
+				local_capsule = value
+			else:
+				local_showcase = value
+			_save_local_state()
+	if resource == "capsule":
+		capsule_loaded.emit(value)
+	else:
+		showcase_loaded.emit(value)
+	if callback.is_valid():
+		callback.call(ok, value)
+
+func put_capsule(value: Dictionary, callback: Callable = Callable()) -> void:
+	local_capsule = value
+	_save_local_state()
+	_queue_write("/v1/me/capsule", value, capsule_saved.emit, callback)
+
+func put_showcase(value: Dictionary, callback: Callable = Callable()) -> void:
+	local_showcase = value
+	_save_local_state()
+	_queue_write("/v1/me/showcase", value, showcase_saved.emit, callback)
+
+func _queue_write(path: String, value: Variant, saved: Callable, callback: Callable, key: String = "") -> void:
+	_write_queue.append({"path": path, "value": value, "saved": saved, "callback": callback, "key": key, "generation": _session_generation})
+	if not _writing:
+		_drain_writes()
+
+func _drain_writes() -> void:
+	_writing = true
+	while not _write_queue.is_empty():
+		var write: Dictionary = _write_queue.pop_front()
+		var ok: bool = write.generation == _session_generation
+		if ok and not is_mock_mode and is_authenticated:
+			# All resources share a revision. Serialize writes and read a fresh strong
+			# ETag first; surface conflicts without overwriting another session's save.
+			var document := await _request_json("/v1/me/state")
+			ok = document.ok and not document.get("etag", "").is_empty()
+			if ok:
+				current_etag = document.etag
+				var response := await _request_json(write.path, HTTPClient.METHOD_PUT, {"value": write.value}, current_etag)
+				ok = response.ok
+		if ok:
+			if not write.key.is_empty():
+				state_saved.emit(write.key, write.value)
+			else:
+				write.saved.call(write.value)
+		if write.callback.is_valid():
+			write.callback.call(ok, write.value)
+	_writing = false
+
+## Host adapters pass authorized cards here. Never fetch another player's private state.
+## Optional ghost_telemetry must come from an independently authorized replay source.
+func set_visitor_cards(cards: Array) -> void:
+	visitor_cards = cards.slice(0, 50).duplicate(true)
+	visitors_updated.emit(visitor_cards)
+
+func begin_visitor_handoff() -> Dictionary:
+	_handoff_pkce = _generate_pkce_pair()
+	var response := await _request_json("/v1/me/visitor-handoff", HTTPClient.METHOD_POST, {
+		"action": "begin", "client_id": client_id, "redirect_uri": redirect_uri,
+		"response_type": "code", "state": _handoff_pkce.state, "scope": "visitors.receive",
+		"code_challenge": _handoff_pkce.challenge, "code_challenge_method": "S256"})
+	return response
+
+func redeem_visitor_handoff(code: String, returned_state: String) -> bool:
+	if _handoff_pkce.is_empty() or returned_state != _handoff_pkce.state:
+		return false
+	var verifier: String = _handoff_pkce.verifier
+	_handoff_pkce.clear()
+	var response := await _request_json("/v1/me/visitor-handoff", HTTPClient.METHOD_POST, {
+		"action": "redeem", "code": code, "code_verifier": verifier, "redirect_uri": redirect_uri})
+	if response.ok:
+		set_visitor_cards(response.data.get("visitors", []))
+	return response.ok
+
+func refresh_visitors() -> void:
+	if is_mock_mode or not is_authenticated:
+		return
+	var refreshed: Array = []
+	for card in visitor_cards.duplicate(true):
+		if not card is Dictionary or not card.get("reference") is String:
+			continue
+		var response := await _request_json("/v1/me/visitors/" + card.reference.uri_encode())
+		if response.ok:
+			refreshed.append(response.data)
+	# Fail closed: revoked, expired, or unavailable cards aren't raced from cache.
+	set_visitor_cards(refreshed)

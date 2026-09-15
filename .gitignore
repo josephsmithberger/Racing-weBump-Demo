@@ -31,3 +31,8 @@ config.local.json
 secrets.cfg
 *.env
 .env.*
+
+# Local experiments and generated artwork previews
+scratch/
+icon_renders/
+.DS_Store

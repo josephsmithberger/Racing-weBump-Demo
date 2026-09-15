@@ -1,0 +1,104 @@
+# Integrating weBump visitors and replay data
+
+## What is saved versus shared
+
+`ghost_telemetry` is a game-defined private state key. `game.state` accepts bounded
+JSON objects and arrays; the backend caps arrays at 256 items and the entire state
+at 16 KiB measured as PostgreSQL JSONB text. It is not a shared visitor resource.
+
+Visitor `stats` is the peer's currently shared capsule; `capsule` is its encounter
+snapshot. Approved capsule/showcase values are bounded integers, booleans, and
+enums, with a 2 KiB limit. They cannot carry the recording's sample array.
+
+These behaviors were checked against the app repository's
+`home-api/platform/store.ts` (`visitor` and document operations),
+`home-api/platform/protocol.ts` (`stateValue` and `sharedValue`), and
+`sdk/WeBumpKit/Sources/WeBumpKit/WeBumpClient.swift`.
+
+## Host responsibilities
+
+1. Start OAuth with PKCE and deliver the exact registered callback's code and
+   state to `exchange_authorization_code(code, state)`. Validate the callback
+   origin/path in the host. The existing website only stores callback values in
+   session storage; it does not complete this round trip to a running game.
+2. Fetch the player's profile and private save before racing. For a public web
+   release, complete the website's intended same-origin session backend; keep
+   player tokens in the backend. The in-memory Godot client is a native/reference
+   implementation, not a replacement for that web session service.
+3. Start `begin_visitor_handoff()`, navigate to the returned `authorization_url`,
+   and deliver the approved code/state to `redeem_visitor_handoff(code, state)`.
+4. Use `refresh_visitors()` on foreground sync before the next race. Missing or
+   rejected cards are removed. Visitor cards remain session-only and are cleared
+   on disconnect. Expired receipt references are not permanent player IDs.
+5. If an independently authorized replay source exists, validate its sharing
+   permission and attach its payload with `set_visitor_cards(cards)` after the
+   visitor refresh. A refresh replaces the cards, so the adapter must reauthorize
+   replay attachments too. Never read another player's private `state` directly.
+
+The game takes a roster snapshot at countdown. `set_visitor_cards` accepts up to
+50 cards and the roster picks three, prioritizing valid recordings. Malformed
+recordings use AI. Names/colors come from the visitor profile, the ghost model
+comes from the recording, and AI model selection uses the optional approved
+`stats.car_body` enum. Unknown model IDs fall back to the bundled Classic Cab.
+
+## Game adapter shape
+
+This is a **game-side extension**, not the current platform's Visitor schema:
+
+```gdscript
+WeBumpAPI.set_visitor_cards([{
+    "reference": authorized_card.reference,
+    "display_name": authorized_card.display_name,
+    "theme_color": authorized_card.theme_color,
+    "stats": authorized_card.get("stats", {}),
+    "ghost_telemetry": authorized_recording
+}])
+```
+
+The recording contract is:
+
+```json
+{
+  "track_id": "demo_loop_v1",
+  "car_body": "truck_red",
+  "lap_count": 3,
+  "total_time_ms": 96000,
+  "samples": [
+    [0, 3.5, 0, 5, 0, 0],
+    [96000, 3.75, 0, 1.5, 0, 0]
+  ]
+}
+```
+
+The two frames illustrate the schema; useful replays include intermediate frames.
+Each frame is `[milliseconds, world_x, world_y, world_z, yaw_radians, lean_radians]`.
+Timestamps must increase, coordinates must be finite/bounded, and the recording
+must include the start and finish (within 100 ms). Legacy recordings without a
+track ID are accepted for this original layout only. Change the validator's
+legacy policy if the track changes. Playback interpolates position and wraps yaw
+through the shortest angle, runs without collision physics, and uses recorded
+finish time rather than inferring it from a high score.
+
+## Saving and revisions
+
+State, capsule, and showcase share one revision. The client serializes writes,
+reads `/v1/me/state` for its strong ETag, and sends it in `If-Match`. Conflicts and
+network failures surface through callbacks and `request_failed`; no blind retry
+can overwrite a concurrent edit. All game records are persisted locally first.
+Cloud failure does not destroy the local record. There is no background retry or
+token-refresh scheduler in this demo; reconnect after token expiry.
+
+Public highscore fields must match the project's approved definition:
+`highscore_seconds`, `best_time_sec`, and `best_lap_sec` are the existing example
+fields. Request approval for any new field (including `car_body`) before using
+it in production. A private replay's name/color is not treated as profile truth.
+
+## Leaderboard estimates
+
+At player finish, completed rivals retain their measured times even after their
+vehicles disappear. Ghosts have known recorded durations. For unfinished AI,
+project the remaining lap fraction using elapsed time per completed lap fraction,
+with completed-lap average as a lower bound on lap duration. Current slowdowns
+therefore influence the forecast. Clamp each forecast beyond the player's finish
+time and label it **Estimated**. The screen is a race snapshot, not a platform-wide
+leaderboard or a claim that unfinished AI actually achieved those times.

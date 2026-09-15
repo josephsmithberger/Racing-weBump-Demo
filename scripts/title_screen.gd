@@ -48,9 +48,9 @@ func _ready() -> void:
 	button_container.visible = true
 	hint_label.visible = true
 	
-	# Start button is disabled until connected to weBump
-	play_button.disabled = true
-	play_button.text = "Start Race (Locked)"
+	# Offline races are available without a connection.
+	play_button.disabled = false
+	play_button.text = "Start Race"
 	
 	_setup_mode_display()
 	_setup_car_chooser()
@@ -90,7 +90,7 @@ func _setup_mode_display() -> void:
 		mode_banner.visible = true
 		mode_label.text = "🌐 LIVE API — api.webump.app"
 		mode_label.add_theme_color_override("font_color", Color(0.0, 0.89, 1.0, 1.0))
-		hint_label.text = "Connect with weBump on iPhone to race against real bumps"
+		hint_label.text = "Start a demo race, or connect your weBump profile"
 		hint_label.add_theme_color_override("font_color", Color(0.55, 0.6, 0.7, 1.0))
 
 # ===================================================================
@@ -373,8 +373,8 @@ func _on_connection_changed(connected: bool, profile: Dictionary) -> void:
 		tween.tween_property(play_button, "scale", Vector2(1.04, 1.04), 0.12).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 		tween.tween_property(play_button, "scale", Vector2(1.0, 1.0), 0.12).set_trans(Tween.TRANS_SINE)
 	else:
-		play_button.disabled = true
-		play_button.text = "Start Race (Locked)"
+		play_button.disabled = false
+		play_button.text = "Start Race"
 		_setup_mode_display()
 
 func _on_play_pressed() -> void:

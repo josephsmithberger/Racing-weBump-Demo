@@ -2,7 +2,6 @@ class_name AIVehicle extends Vehicle
 
 @export var driver_name: String = "Racer"
 @export var track_path: Path3D
-@export var model_scene: PackedScene
 @export var start_delay: float = 0.0
 @export var look_ahead_distance: float = 4.5
 @export var lane_offset: float = 0.0
@@ -12,16 +11,23 @@ class_name AIVehicle extends Vehicle
 @export var steer_gain: float = 1.8
 @export var steer_smoothness: float = 12.0
 @export var driver_frequency: float = 1.0
-@export var ghost_transparency: float = 0.72
-@export var ghost_tint: Color = Color(1.0, 1.0, 1.0, 1.0)
-@export var enable_ghost_visuals: bool = true
 @export var max_laps: int = 3
+
+signal rival_finished(rival_id: String, finish_time: float)
+
+var rival_id: String = ""
+var rival_color: Color = Color.DODGER_BLUE
+var car_body: String = "truck_yellow"
+var finish_time: float = -1.0
+var race_progress: float = 0.0
+var completed_lap_times: Array[float] = []
+var _last_lap_time: float = 0.0
 
 var current_lap: int = 1
 var is_finished: bool = false
 
 var _curve: Curve3D
-var _race_manager: RaceManager
+var _race_manager: Node
 var _stuck_timer: float = 0.0
 var _last_pos: Vector3 = Vector3.ZERO
 var _prev_offset: float = 0.0
@@ -68,19 +74,12 @@ static func _get_shared_pop_audio() -> AudioStreamWAV:
 	return _shared_pop_audio
 
 func _ready() -> void:
-	# 1. Swap visual model if custom model_scene is assigned
-	if model_scene != null:
-		_swap_model(model_scene)
-	
-	# 2. Ghost collision: Layer 16 (AI), Mask 1 (Track/ground only)
-	if sphere != null:
-		sphere.collision_layer = 16
-		sphere.collision_mask = 1
-	
-	# 3. Apply uniform ghost translucent visuals with depth pre-pass
-	if enable_ghost_visuals:
-		_apply_ghost_visuals()
-	
+	apply_car_preset(car_body)
+	apply_body_color(rival_color)
+	# Opponents pass through the player and each other.
+	sphere.collision_layer = 16
+	sphere.collision_mask = 1
+
 	# 4. Soften AI audio
 	if engine_sound != null:
 		engine_sound.volume_db -= 4.0
@@ -111,16 +110,16 @@ func _ready() -> void:
 	# 7. Synchronize with RaceManager countdown
 	set_controls_enabled(false)
 	_racing_active = false
-	_race_manager = get_node_or_null("../RaceManager") as RaceManager
+	_race_manager = get_node_or_null("../RaceManager")
 	if _race_manager != null:
 		_race_manager.race_started.connect(_on_race_started)
-		_race_manager.race_finished.connect(_on_race_finished)
 	else:
 		get_tree().create_timer(1.5).timeout.connect(func(): _on_race_started())
 	
 	_last_pos = global_position
 	if _curve != null:
-		_prev_offset = _curve.get_closest_offset(global_position)
+		_prev_offset = _lap_offset(vehicle_model.global_position)
+		race_progress = _prev_offset / _curve.get_baked_length()
 
 func _init_prewarmed_effects() -> void:
 	# Pre-create particle emitter and pre-bind mesh/shader so GPU compiles during countdown
@@ -162,54 +161,8 @@ func _on_race_started() -> void:
 	_racing_active = true
 	set_controls_enabled(true)
 
-func _on_race_finished(_total_time: float, _lap_times: Array, _best_lap_time: float) -> void:
-	pass
-
-func _swap_model(scene: PackedScene) -> void:
-	var old_model = get_node_or_null("Container/Model")
-	if old_model != null:
-		old_model.queue_free()
-	
-	var new_model = scene.instantiate()
-	new_model.name = "Model"
-	$Container.add_child(new_model)
-	
-	vehicle_body = get_node_or_null("Container/Model/body")
-	wheel_fl = get_node_or_null("Container/Model/wheel-front-left")
-	wheel_fr = get_node_or_null("Container/Model/wheel-front-right")
-	wheel_bl = get_node_or_null("Container/Model/wheel-back-left")
-	wheel_br = get_node_or_null("Container/Model/wheel-back-right")
-
-func _apply_ghost_visuals() -> void:
-	var meshes: Array[MeshInstance3D] = []
-	var queue: Array[Node] = [$Container]
-	while queue.size() > 0:
-		var cur = queue.pop_front()
-		if cur is MeshInstance3D:
-			meshes.append(cur)
-		for child in cur.get_children():
-			queue.push_back(child)
-	
-	for m in meshes:
-		if m.name == "underside":
-			m.visible = false
-			continue
-		
-		for s in range(m.mesh.get_surface_count()):
-			var mat = m.get_active_material(s)
-			if mat is StandardMaterial3D:
-				var ghost_mat = mat.duplicate() as StandardMaterial3D
-				ghost_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
-				ghost_mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_ALWAYS
-				ghost_mat.cull_mode = BaseMaterial3D.CULL_BACK
-				ghost_mat.albedo_color = Color(ghost_tint.r, ghost_tint.g, ghost_tint.b, ghost_transparency)
-				ghost_mat.rim_enabled = true
-				ghost_mat.rim = 0.45
-				ghost_mat.rim_tint = 0.5
-				m.set_surface_override_material(s, ghost_mat)
-
 func handle_input(delta: float) -> void:
-	if is_finished or not controls_enabled or not raycast.is_colliding() or _curve == null:
+	if is_finished or not controls_enabled or not raycast.is_colliding() or _curve == null or (_race_manager and not _race_manager.is_racing()):
 		input = Vector3.ZERO
 		linear_speed = lerp(linear_speed, 0.0, delta * 4.0)
 		sphere.angular_velocity += vehicle_model.get_global_transform().basis.x * (linear_speed * 100.0) * delta
@@ -222,7 +175,7 @@ func handle_input(delta: float) -> void:
 
 	# 1. Track curve progress & lap completion
 	var current_offset = _curve.get_closest_offset(current_pos)
-	_update_lap_tracking(current_offset, baked_len)
+	_update_lap_tracking(_lap_offset(current_pos), baked_len)
 	if is_finished:
 		return
 
@@ -265,23 +218,37 @@ func handle_input(delta: float) -> void:
 	# 6. Stuck check
 	_check_stuck(delta, current_pos)
 
+func _lap_offset(world_position: Vector3) -> float:
+	# Match the actual finish gate, which is not the first point of the curve.
+	var finish := _curve.get_closest_offset(Vector3(3.75, 0, 1.5))
+	return fposmod(_curve.get_closest_offset(track_path.to_local(world_position)) - finish, _curve.get_baked_length())
+
 func _update_lap_tracking(current_offset: float, baked_len: float) -> void:
-	if current_offset > 35.0 and current_offset < 75.0:
+	if current_offset > baked_len * 0.4 and current_offset < baked_len * 0.7:
 		_reached_backstretch = true
-	
-	if _reached_backstretch and _prev_offset > (baked_len - 15.0) and current_offset < 15.0:
+	if _reached_backstretch and _prev_offset > baked_len * 0.85 and current_offset < baked_len * 0.15:
 		_reached_backstretch = false
 		current_lap += 1
-		print("[AI Race] ", driver_name, " completed lap ", current_lap - 1, "! (Now on Lap ", current_lap, "/", max_laps, ")")
-		
-		if current_lap > max_laps and not is_finished:
-			is_finished = true
-			_disappear_into_confetti()
-	
+		var elapsed: float = _race_manager.total_time if _race_manager else 0.0
+		completed_lap_times.append(elapsed - _last_lap_time)
+		_last_lap_time = elapsed
+		if current_lap > max_laps:
+			finish_race(elapsed)
+	race_progress = minf(float(max_laps), current_lap - 1 + current_offset / baked_len)
 	_prev_offset = current_offset
 
+func finish_race(elapsed: float) -> void:
+	if is_finished:
+		return
+	is_finished = true
+	finish_time = elapsed
+	rival_finished.emit(rival_id, elapsed)
+	_disappear_into_confetti()
+
+func estimate_finish_time(elapsed: float) -> float:
+	return RaceStandings.predict_finish(elapsed, race_progress, max_laps, completed_lap_times)
+
 func _disappear_into_confetti() -> void:
-	print("[AI Race] ", driver_name, " crossed the finish line on Lap 3! Vanishing into confetti!")
 	set_controls_enabled(false)
 	
 	# Freeze physics

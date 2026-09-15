@@ -1,66 +1,106 @@
-<p align="center"><img src="icon.png"/></p>
+<p align="center"><img src="icon.png" width="160" alt="weBump Racing Demo"/></p>
 
-# Starter Kit Racing
+# weBump Racing Demo
 
-This package includes a basic template for a racing game in Godot 4.6. Includes features like;
+A playable Godot example of mapping weBump visitor cards to racing opponents.
+Built on Kenney's arcade racing starter kit.
 
-- Arcade-like vehicle controls
-- Smoke effect
-- GridMap based track creation
-- 3D Models & sounds _(CC0 licensed)_
+## Run locally
 
-### Screenshot
+Open `project.godot` in **Godot 4.7** and press **F6** on the title scene, or **F5**
+to run the project. Choose a car and select **Start Race**. No account is required.
+**Connect with weBump** simulates a profile in the editor.
 
-<p align="center"><img src="screenshots/screenshot.png"/></p>
-
-### Controls
-
-| Key | Command |
+| Controls | Action |
 | --- | --- |
-| <kbd>W</kbd> | Accelerate/brake |
-| <kbd>S</kbd> | Brake/reverse |
-| <kbd>A</kbd> <kbd>D</kbd> | Steering |
+| W / Up | Accelerate |
+| S / Down | Brake / reverse |
+| A, D / Left, Right | Steer |
 
-### Instructions
+Offline races include Maya's synthetic ghost, Liam, and Sam. Three rival slots
+are filled from available visitor cards, with valid ghosts taking priority.
+Empty slots use practice AI. A race roster stays fixed until the next race.
 
-#### 1. How to adjust the track?
+## Racing and results
 
-Select the 'GridMap' node and place pre-made tiles in the world.
+- Three laps with ordered checkpoints.
+- Visitor names and theme colors identify both ghost and AI opponents.
+- Ghosts replay the saved car model, position, heading, and lean on the race clock.
+- Missing, malformed, incomplete, or incompatible recordings fall back to AI.
+- The finish screen ranks all entrants. Ghost times are **Recorded**; completed AI
+  times are **Finished**. Unfinished AI times are **Estimated**, using observed
+  track progress and lap pace. Estimates cannot put an unfinished AI ahead of
+  the player who just finished.
+- Personal bests and complete replays save locally; connected saves attempt cloud
+  synchronization. A replay takes at most three minutes, 256 frames, and 12 KB
+  of compact JSON, leaving space in weBump's 16 KiB private state document.
 
-#### 2. How to change the car model?
+## API example: implemented boundary
 
-Choose one of the included vehicles in the project (for example 'vehicle-truck-yellow.glb') and drag it into the project as a child of 'Container'. Then change the name to 'Model'.
+`WeBumpAPI` is a normal Godot autoload. Public configuration lives in `config.json`;
+local preferences and records live under Godot's `user://` directory. Tokens stay
+in memory and are never bundled or written into the save file.
 
-#### 3. How to add custom car models?
+| Resource | Example use |
+| --- | --- |
+| `/oauth/authorize`, `/oauth/token` | PKCE connection; callback state validation |
+| `GET /v1/me` | Player name and color |
+| `GET /v1/me/state` | Read custom private saves |
+| `PUT /v1/me/state/:key` | Save `racing_save` and `ghost_telemetry` |
+| `GET/PUT /v1/me/capsule`, `/showcase` | Approved integer high scores |
+| `POST /v1/me/visitor-handoff` | Begin and redeem approved visitor handoff |
+| `GET /v1/me/visitors/:reference` | Revalidate an authorized visitor card |
 
-Follow the same steps as seen above but make sure your model has the following children;
+**Current platform limitation:** custom ghost data is saved in private state.
+The app backend returns a visitor's profile and approved scalar capsule, not
+that visitor's private saves. Live cross-player ghost exchange therefore needs
+a consent-controlled shared replay API or an authorized game-host adapter.
+This repository implements playback and the adapter boundary; it does not claim
+that ordinary visitor cards already contain recordings. See
+[API integration](docs/API_INTEGRATION.md) for the exact handoff and replay shape.
 
-- `body` The body of the vehicle
+The website's callback page also needs a complete game session integration before
+live OAuth/handoff works end to end. Desktop browser callbacks are not delivered
+automatically. This repository does not deploy or change the website/backend.
 
-- `wheel-front-left` The front left wheel of the vehicle
+## Code map
 
-- `wheel-front-right` The front right wheel of the vehicle
+| File | Responsibility |
+| --- | --- |
+| `scripts/webump_api.gd` | Profile, saves, serialized revision writes, visitor adapter |
+| `scripts/rival_roster.gd` | Validate identity, prioritize ghosts, synthetic demo cards |
+| `scripts/ghost_data.gd` | Replay validation and byte-budget compaction |
+| `scripts/ghost_recorder.gd` | Record complete runs and preserve best saves |
+| `scripts/ghost_driver.gd` | Interpolate recorded telemetry |
+| `scripts/ai_vehicle.gd` | Waypoint driver, lap progress, finish events |
+| `scripts/race_manager.gd` | Countdown, roster, checkpoints, results snapshot |
+| `scripts/race_standings.gd` | Finish projection and ranking |
+| `scripts/race_hud.gd` | Race feedback and leaderboard |
+| `scripts/vehicle.gd`, `car_presets.gd` | Shared vehicle physics and paint/model selection |
 
-- `wheel-back-left` The back left wheel of the vehicle
+AI and ghost scenes inherit the player vehicle prefab so geometry, sound, and
+physics setup remain in one place. Track geometry is in `scenes/main.tscn`;
+update `track_path.gd` and increment `GhostData.TRACK_ID` when changing its layout.
+Planning notes, local experiments, credentials, and build outputs are gitignored.
 
-- `wheel-back-right` The back right wheel of the vehicle
+## Verify
 
-#### 4. How to change from a car to a motorcycle?
+```sh
+godot --headless --path . --editor --import --quit
+godot --headless --path . --script tests/test_racing.gd
+godot --headless --path . --script tests/test_api.gd
+godot --headless --path . --script tests/test_loading.gd
+godot --headless --fixed-fps 60 --path . --script tests/test_race_simulation.gd
+```
 
-Remove the 'Vehicle' node from the main scene. Find the 'vehicle-motorcycle.tscn' scene and place it in your main scene, make sure to adjust the 'View' node to target the new vehicle.
+Checks cover malformed/truncated telemetry, payload limits, roster replacement,
+model/paint/name matching, playback, result retention after rivals disappear,
+actual/recorded/estimated ordering, sequential API revisions, cold threaded loading,
+and complete AI races. Add `-- --visual` to the racing UI check
+and omit `--headless` to capture `/tmp/webump-leaderboard.png`.
 
-### License
+## License and credits
 
-MIT License
-
-Copyright (c) 2026 Kenney
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-Assets included in this package (2D sprites, 3D models and sound effects) are [CC0 licensed](https://creativecommons.org/publicdomain/zero/1.0/)
-
-The skid sound effect was made by [Landeplage](https://github.com/Landeplage) and is also CC0 licensed
+Code: [MIT](LICENSE), including the original Kenney copyright notice.
+Sprites, models, and sounds: [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
+Skid sound by [Landeplage](https://github.com/Landeplage).

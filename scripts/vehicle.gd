@@ -56,32 +56,32 @@ var calculated_lean: float
 var controls_enabled: bool = true
 
 func _ready() -> void:
-	# If this is the player vehicle (not an AI subclass)
-	if not (self is AIVehicle):
-		var selected_id = CarPresets.get_selected_car()
-		var api = _get_api()
-		if api:
-			api.auth_succeeded.connect(func(_profile: Dictionary, _is_mock: bool):
-				var col = api.get_player_theme_color()
-				apply_body_color(col)
-				setup_nameplate(api.get_player_display_name())
-			)
-			api.session_disconnected.connect(func():
-				var preset = CarPresets.get_preset_by_id(current_preset_id)
-				apply_body_color(preset.get("default_color", Color(1.0, 0.70, 0.0)))
-				setup_nameplate("Player")
-			)
-			api.car_body_changed.connect(func(new_body: String):
-				apply_car_preset(new_body)
-			)
-		
-		print("[Vehicle] Applying player car preset: '%s'" % selected_id)
-		apply_car_preset(selected_id)
-		
-		var name_str = "Player"
-		if api:
-			name_str = api.get_player_display_name()
-		setup_nameplate(name_str)
+	# Rival subclasses implement their own setup. Keep the base independent of drivers.
+	var selected_id = CarPresets.get_selected_car()
+	var api = _get_api()
+	if api:
+		api.auth_succeeded.connect(func(_profile: Dictionary, _is_mock: bool):
+			var col = api.get_player_theme_color()
+			apply_body_color(col)
+			setup_nameplate(api.get_player_display_name())
+		)
+		api.session_disconnected.connect(func():
+			var preset = CarPresets.get_preset_by_id(current_preset_id)
+			apply_body_color(preset.get("default_color", Color(1.0, 0.70, 0.0)))
+			setup_nameplate("Player")
+		)
+		api.car_body_changed.connect(func(new_body: String):
+			apply_car_preset(new_body)
+		)
+
+	print("[Vehicle] Applying player car preset: '%s'" % selected_id)
+	apply_car_preset(selected_id)
+
+	var name_str = "Player"
+	if api:
+		name_str = api.get_player_display_name()
+	setup_nameplate(name_str)
+
 
 func _get_api() -> Node:
 	return CarPresets.get_api()

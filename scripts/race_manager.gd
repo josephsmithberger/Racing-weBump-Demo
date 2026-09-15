@@ -13,6 +13,10 @@ enum State { COUNTDOWN, RACING, FINISHED }
 @export var player_vehicle: Vehicle
 @export var view_camera: Node3D
 
+var rivals: Array[AIVehicle] = []
+var leaderboard: Array[Dictionary] = []
+var _rival_entries: Dictionary = {}
+
 var state: State = State.COUNTDOWN
 var current_lap: int = 1
 var total_time: float = 0.0
@@ -38,14 +42,18 @@ func _ready() -> void:
 	if player_vehicle:
 		player_vehicle.set_controls_enabled(false)
 	
+	_spawn_rivals.call_deferred()
 	_start_countdown()
+
+func is_racing() -> bool:
+	return state == State.RACING
 
 func _start_countdown() -> void:
 	state = State.COUNTDOWN
 	_countdown_step = 4
 	_countdown_timer = 0.5 # Initial breather before "3"
 
-func _process(delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	match state:
 		State.COUNTDOWN:
 			_process_countdown(delta)
@@ -116,7 +124,71 @@ func trigger_finish_line() -> void:
 		if current_lap == max_laps:
 			final_lap_started.emit()
 	else:
+		_build_leaderboard()
 		state = State.FINISHED
 		if player_vehicle:
 			player_vehicle.set_controls_enabled(false)
 		race_finished.emit(total_time, lap_times, best_lap_time)
+
+func _spawn_rivals() -> void:
+	var path := get_node("../TrackPath") as TrackPath
+	var api := CarPresets.get_api()
+	var cards: Array = api.visitor_cards if api else []
+	if cards.is_empty() and (api == null or api.is_mock_mode or not api.is_authenticated):
+		cards = RivalRoster.demo_cards(path.curve)
+	var roster := RivalRoster.from_visitors(cards, max_laps)
+	# Connected sessions with no eligible bumps still have generic practice opponents.
+	while roster.size() < RivalRoster.MAX_RIVALS:
+		var i := roster.size()
+		roster.append({"id": "practice-%d" % i, "display_name": "Practice %d" % (i + 1),
+			"color": [Color.SEA_GREEN, Color.MEDIUM_PURPLE, Color.ORANGE][i],
+			"car_body": ["truck_green", "truck_purple", "truck_red"][i], "kind": "AI", "ghost": {}})
+	for i in range(roster.size()):
+		var entry := roster[i]
+		var prefab := preload("res://scenes/ghost_vehicle.tscn") if entry.kind == "Ghost" else preload("res://scenes/ai_vehicle.tscn")
+		var driver := prefab.instantiate() as AIVehicle
+		driver.name = "Rival%d" % i
+		driver.rival_id = entry.id
+		driver.driver_name = entry.display_name
+		driver.rival_color = entry.color
+		driver.car_body = entry.car_body
+		driver.track_path = path
+		driver.max_laps = max_laps
+		driver.position = Vector3(2.2 + (i % 2) * 2.6, 0, 3.0 - i * 1.7)
+		driver.max_throttle = 0.98 - i * 0.04
+		driver.corner_throttle = 0.76 - i * 0.05
+		driver.lane_offset = -0.5 if i % 2 == 0 else 0.5
+		if driver is GhostDriver:
+			driver.recording = entry.ghost
+		_rival_entries[entry.id] = entry.duplicate(true)
+		_rival_entries[entry.id]["time"] = -1.0
+		driver.rival_finished.connect(_on_rival_finished)
+		get_parent().add_child(driver)
+		driver.setup_nameplate("%s · %s" % [entry.display_name, entry.kind])
+		rivals.append(driver)
+
+func _on_rival_finished(rival_id: String, finish_time: float) -> void:
+	# Keep results even after the rival's confetti animation frees the vehicle.
+	_rival_entries[rival_id]["time"] = finish_time
+
+func _build_leaderboard() -> void:
+	var api := CarPresets.get_api()
+	var rows: Array[Dictionary] = [{"id": "player", "display_name": api.get_player_display_name() if api else "Player",
+		"color": api.get_player_theme_color() if api else Color.GOLD,
+		"car_body": CarPresets.get_selected_car(), "kind": "You", "status": "Finished", "time": total_time}]
+	for entry in _rival_entries.values():
+		var row: Dictionary = entry.duplicate(true)
+		row.erase("ghost")
+		if entry.kind == "Ghost":
+			row.time = float(entry.ghost.total_time_ms) / 1000.0
+			row.status = "Recorded"
+		elif entry.time >= 0:
+			row.status = "Finished"
+		else:
+			row.status = "Estimated"
+			for rival in rivals:
+				if is_instance_valid(rival) and rival.rival_id == entry.id:
+					row.time = rival.estimate_finish_time(total_time)
+					break
+		rows.append(row)
+	leaderboard = RaceStandings.sorted(rows)

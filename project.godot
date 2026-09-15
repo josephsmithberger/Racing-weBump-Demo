@@ -15,12 +15,16 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 [application]
 
 config/name="Starter Kit Racing"
-config/tags=PackedStringArray("starterkit")
+config/tags=PackedStringArray("racing", "api-example")
 run/main_scene="res://scenes/title_screen.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 boot_splash/bg_color=Color(0.921875, 0.921875, 0.957031, 1)
 boot_splash/image="res://splash-screen.png"
 config/icon="res://icon.png"
+
+[autoload]
+
+WeBumpAPI="*res://scripts/webump_api.gd"
 
 [display]
 
@@ -29,7 +33,6 @@ window/size/viewport_height=720
 
 [editor]
 
-movie_writer/movie_file="D:/Godot/recording.mp4.avi"
 movie_writer/mjpeg_quality=1.0
 
 [filesystem]
@@ -95,7 +98,6 @@ project/editorState=[{
 "current": true,
 "line": 0,
 "path": "res://scripts/webump_api.gd",
-"transient": true,
 "type": "file"
 }]
 project/shaderEditorState=[]

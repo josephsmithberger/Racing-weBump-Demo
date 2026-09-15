@@ -127,26 +127,6 @@ static func set_selected_car(id: String) -> void:
 	
 	print("[CarPresets] Active car updated to: '%s'" % id)
 
-static var _api_instance: Node = null
-
 static func get_api(caller: Node = null) -> Node:
-	if _api_instance != null and is_instance_valid(_api_instance):
-		return _api_instance
-	var root: Node = null
-	if caller != null and caller.is_inside_tree():
-		root = caller.get_tree().root
-	else:
-		var tree = Engine.get_main_loop() as SceneTree
-		if tree:
-			root = tree.root
-	if root:
-		if root.has_node("WeBumpAPI"):
-			_api_instance = root.get_node("WeBumpAPI")
-			return _api_instance
-		var script = load("res://scripts/webump_api.gd")
-		var api = script.new()
-		api.name = "WeBumpAPI"
-		root.call_deferred("add_child", api)
-		_api_instance = api
-		return _api_instance
-	return null
+	var tree := caller.get_tree() if caller and caller.is_inside_tree() else Engine.get_main_loop() as SceneTree
+	return tree.root.get_node_or_null("WeBumpAPI") if tree else null
