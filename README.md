@@ -34,6 +34,10 @@ Empty slots use practice AI. A race roster stays fixed until the next race.
 - Personal bests and complete replays save locally; connected saves attempt cloud
   synchronization. A replay takes at most three minutes, 256 frames, and 12 KB
   of compact JSON, leaving space in weBump's 16 KiB private state document.
+- **Share Replay** on the results card publishes only the best complete replay
+  through weBump's selected shared game data (`game.shared`). It is an explicit
+  button, never automatic, and the player must also turn on "Share selected game
+  data" for this game in the weBump app. Private saves are never shared.
 
 ## API example: implemented boundary
 
@@ -46,17 +50,20 @@ in memory and are never bundled or written into the save file.
 | `/oauth/authorize`, `/oauth/token` | PKCE connection; callback state validation |
 | `GET /v1/me` | Player name and color |
 | `GET /v1/me/state` | Read custom private saves |
-| `PUT /v1/me/state/:key` | Save `racing_save` and `ghost_telemetry` |
+| `PUT /v1/me/state/:key` | Save `racing_save` and `ghost_telemetry` (private) |
 | `GET/PUT /v1/me/capsule`, `/showcase` | Approved integer high scores |
+| `GET /v1/me/permissions` | Whether the player enabled selected-data sharing |
+| `PUT /v1/me/shared` | Publish the selected replay (`{"publish":true,"value":…}`) |
 | `POST /v1/me/visitor-handoff` | Begin and redeem approved visitor handoff |
 | `GET /v1/me/visitors/:reference` | Revalidate an authorized visitor card |
+| `GET /v1/me/visitors/:reference/shared` | Fetch that rival's shared replay, if any |
 
-**Current platform limitation:** custom ghost data is saved in private state.
-The app backend returns a visitor's profile and approved scalar capsule, not
-that visitor's private saves. Live cross-player ghost exchange therefore needs
-a consent-controlled shared replay API or an authorized game-host adapter.
-This repository implements playback and the adapter boundary; it does not claim
-that ordinary visitor cards already contain recordings. See
+**How ghosts travel between players:** a rival's replay is never read from
+their private state. Each player chooses to publish one replay through
+`game.shared`; the game later fetches it by the authorized bump reference. A
+`410` means nothing is shared (opted out, expired, withdrawn, or blocked) and
+that rival races as AI. The reviewed schema for this game is in
+[docs/shared_data_definition.json](docs/shared_data_definition.json). See
 [API integration](docs/API_INTEGRATION.md) for the exact handoff and replay shape.
 
 The website's callback page also needs a complete game session integration before
@@ -91,6 +98,7 @@ godot --headless --path . --script tests/test_racing.gd
 godot --headless --path . --script tests/test_api.gd
 godot --headless --path . --script tests/test_loading.gd
 godot --headless --fixed-fps 60 --path . --script tests/test_race_simulation.gd
+godot --headless --fixed-fps 60 --path . --script tests/test_ghost_sharing.gd
 ```
 
 Checks cover malformed/truncated telemetry, payload limits, roster replacement,

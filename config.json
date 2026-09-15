@@ -8,7 +8,8 @@
     "game.state",
     "visitors.receive",
     "game.capsule",
-    "game.showcase"
+    "game.showcase",
+    "game.shared"
   ],
   "mock_mode": false
 }

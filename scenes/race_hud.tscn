@@ -527,6 +527,14 @@ theme_override_font_sizes/font_size = 13
 text = "☁️ Ghost telemetry & car body saved to weBump"
 horizontal_alignment = 1
 
+[node name="ShareLabel" type="Label" parent="HUDControl/ResultsScreen/Center/ResultsCard/VBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.2, 1, 0.5, 1)
+theme_override_font_sizes/font_size = 13
+horizontal_alignment = 1
+
 [node name="HSeparator2" type="HSeparator" parent="HUDControl/ResultsScreen/Center/ResultsCard/VBox"]
 layout_mode = 2
 
@@ -543,6 +551,16 @@ theme_override_styles/normal = SubResource("StyleBoxFlat_btn_normal")
 theme_override_styles/hover = SubResource("StyleBoxFlat_btn_hover")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_btn_hover")
 text = "RETRY RACE"
+
+[node name="ShareButton" type="Button" parent="HUDControl/ResultsScreen/Center/ResultsCard/VBox/Buttons"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+theme_override_styles/normal = SubResource("StyleBoxFlat_btn_normal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_btn_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_btn_hover")
+text = "SHARE REPLAY"
 
 [node name="TitleButton" type="Button" parent="HUDControl/ResultsScreen/Center/ResultsCard/VBox/Buttons"]
 unique_name_in_owner = true

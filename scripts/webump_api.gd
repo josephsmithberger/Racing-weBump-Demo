@@ -11,6 +11,8 @@ signal capsule_saved(value: Dictionary)
 signal capsule_loaded(value: Dictionary)
 signal showcase_saved(value: Dictionary)
 signal showcase_loaded(value: Dictionary)
+signal shared_data_published(value: Dictionary)
+signal permissions_loaded(permissions: Dictionary)
 signal visitors_updated(cards: Array)
 signal request_failed(operation: String, status: int)
 
@@ -20,7 +22,7 @@ const SAVE_STATE_PATH: String = "user://webump_state.json"
 var client_id: String = "wb_5c296d5bb9144ad9a039d24056eaa802"
 var api_origin: String = "https://api.webump.app"
 var redirect_uri: String = "https://webump.app/demo"
-var scopes: Array = ["profile.basic", "game.state", "visitors.receive", "game.capsule", "game.showcase"]
+var scopes: Array = ["profile.basic", "game.state", "visitors.receive", "game.capsule", "game.showcase", "game.shared"]
 
 var is_editor_mode: bool = OS.has_feature("editor")
 var is_mock_mode: bool = OS.has_feature("editor")
@@ -36,7 +38,10 @@ var selected_car_body: String = "truck_yellow"
 var local_state: Dictionary = {}
 var local_capsule: Dictionary = {}
 var local_showcase: Dictionary = {}
+## Player-controlled weBump toggle; the game cannot enable it. Read from /v1/me/permissions.
+var shared_data_sharing: bool = false
 var current_etag: String = ""
+var last_write_status: int = 0
 var visitor_cards: Array = []
 var _handoff_pkce: Dictionary = {}
 var _write_queue: Array[Dictionary] = []
@@ -267,6 +272,7 @@ func _on_player_profile_completed(result: int, response_code: int, _headers: Pac
 		current_player_profile["mode"] = "Live API"
 		is_authenticated = true
 		await get_state("racing_save")
+		await fetch_permissions()
 		auth_succeeded.emit(current_player_profile, false)
 	else:
 		auth_failed.emit("Invalid profile JSON received.")
@@ -281,6 +287,7 @@ func disconnect_player() -> void:
 	_handoff_pkce.clear()
 	_session_generation += 1
 	current_etag = ""
+	shared_data_sharing = false
 	visitors_updated.emit(visitor_cards)
 	session_disconnected.emit()
 
@@ -430,8 +437,31 @@ func put_state(key: String, value: Variant, callback: Callable = Callable()) -> 
 	_save_local_state()
 	_queue_write("/v1/me/state/" + key.uri_encode(), value, Callable(), callback, key)
 
+## The personal-best replay stays in private state. Nothing here is visible to other players.
 func save_ghost_telemetry(ghost_data: Dictionary) -> void:
 	put_state("ghost_telemetry", ghost_data)
+
+func fetch_permissions(callback: Callable = Callable()) -> void:
+	var permissions: Dictionary = {"shared_data_sharing": shared_data_sharing}
+	var ok := true
+	if not is_mock_mode and is_authenticated:
+		var response := await _request_json("/v1/me/permissions")
+		ok = response.ok
+		if ok:
+			permissions = response.data
+			shared_data_sharing = bool(permissions.get("shared_data_sharing", false))
+	permissions_loaded.emit(permissions)
+	if callback.is_valid():
+		callback.call(ok, permissions)
+
+## Publish one player-selected document through game.shared. Call only from an explicit
+## in-game action. The server also requires the player's weBump toggle, so a 403 means
+## "ask the player to enable Share selected game data in weBump", not a bug.
+func publish_shared_data(value: Dictionary, callback: Callable = Callable()) -> void:
+	_queue_write("/v1/me/shared", value, shared_data_published.emit, callback, "", true)
+
+func withdraw_shared_data(callback: Callable = Callable()) -> void:
+	_queue_write("/v1/me/shared", {}, shared_data_published.emit, callback, "", false, HTTPClient.METHOD_DELETE)
 
 func get_capsule(callback: Callable = Callable()) -> void:
 	await _get_public("capsule", callback)
@@ -469,8 +499,9 @@ func put_showcase(value: Dictionary, callback: Callable = Callable()) -> void:
 	_save_local_state()
 	_queue_write("/v1/me/showcase", value, showcase_saved.emit, callback)
 
-func _queue_write(path: String, value: Variant, saved: Callable, callback: Callable, key: String = "") -> void:
-	_write_queue.append({"path": path, "value": value, "saved": saved, "callback": callback, "key": key, "generation": _session_generation})
+func _queue_write(path: String, value: Variant, saved: Callable, callback: Callable, key: String = "", publish: bool = false, method: HTTPClient.Method = HTTPClient.METHOD_PUT) -> void:
+	_write_queue.append({"path": path, "value": value, "saved": saved, "callback": callback, "key": key,
+		"publish": publish, "method": method, "generation": _session_generation})
 	if not _writing:
 		_drain_writes()
 
@@ -486,8 +517,12 @@ func _drain_writes() -> void:
 			ok = document.ok and not document.get("etag", "").is_empty()
 			if ok:
 				current_etag = document.etag
-				var response := await _request_json(write.path, HTTPClient.METHOD_PUT, {"value": write.value}, current_etag)
+				var body: Dictionary = {"value": write.value}
+				if write.publish:
+					body["publish"] = true # Explicit selection; the server rejects implicit publication.
+				var response := await _request_json(write.path, write.method, body, current_etag)
 				ok = response.ok
+				last_write_status = response.status
 		if ok:
 			if not write.key.is_empty():
 				state_saved.emit(write.key, write.value)
@@ -497,8 +532,8 @@ func _drain_writes() -> void:
 			write.callback.call(ok, write.value)
 	_writing = false
 
-## Host adapters pass authorized cards here. Never fetch another player's private state.
-## Optional ghost_telemetry must come from an independently authorized replay source.
+## Visitor cards come from the redeemed handoff. ghost_telemetry is attached only from the
+## authorized game.shared read below (or a host adapter); it is never another player's private state.
 func set_visitor_cards(cards: Array) -> void:
 	visitor_cards = cards.slice(0, 50).duplicate(true)
 	visitors_updated.emit(visitor_cards)
@@ -529,8 +564,16 @@ func refresh_visitors() -> void:
 	for card in visitor_cards.duplicate(true):
 		if not card is Dictionary or not card.get("reference") is String:
 			continue
-		var response := await _request_json("/v1/me/visitors/" + card.reference.uri_encode())
-		if response.ok:
-			refreshed.append(response.data)
+		var reference: String = card.reference.uri_encode()
+		var response := await _request_json("/v1/me/visitors/" + reference)
+		if not response.ok:
+			continue
+		var fresh: Dictionary = response.data
+		if scopes.has("game.shared"):
+			# 410 means nothing is shared (opt-out, expiry, withdrawal, block); race that person as AI.
+			var shared := await _request_json("/v1/me/visitors/" + reference + "/shared")
+			if shared.ok and shared.data.get("data") is Dictionary:
+				fresh["ghost_telemetry"] = shared.data.data
+		refreshed.append(fresh)
 	# Fail closed: revoked, expired, or unavailable cards aren't raced from cache.
 	set_visitor_cards(refreshed)

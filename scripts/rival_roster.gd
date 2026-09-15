@@ -13,7 +13,8 @@ static func from_visitors(cards: Array, laps: int = 3) -> Array[Dictionary]:
 		if not reference is String or reference.is_empty() or seen.has(reference):
 			continue
 		seen[reference] = true
-		# ghost_telemetry is a game adapter extension, NOT private visitor state.
+		# ghost_telemetry is that rival's own game.shared publication (or a host adapter's
+		# authorized copy), fetched separately by reference. Never private visitor state.
 		var recording: Variant = card.get("ghost_telemetry", {})
 		var has_ghost := GhostData.is_valid(recording, laps)
 		var stats: Variant = card.get("stats", {})

@@ -33,6 +33,8 @@ var _audio: RaceAudio
 @onready var leaderboard_rows: VBoxContainer = %LeaderboardRows
 @onready var result_best_lap: Label = %ResultBestLap
 @onready var ghost_sync_label: Label = %GhostSyncLabel
+@onready var share_label: Label = %ShareLabel
+@onready var share_button: Button = %ShareButton
 @onready var retry_button: Button = %RetryButton
 @onready var title_button: Button = %TitleButton
 
@@ -58,6 +60,10 @@ func _ready() -> void:
 	retry_button.mouse_exited.connect(func(): _animate_btn(retry_button, 1.0))
 	title_button.mouse_entered.connect(func(): _animate_btn(title_button, 1.06))
 	title_button.mouse_exited.connect(func(): _animate_btn(title_button, 1.0))
+	share_button.pressed.connect(_on_share_pressed)
+	share_button.mouse_entered.connect(_on_button_hover)
+	share_button.mouse_entered.connect(func(): _animate_btn(share_button, 1.06))
+	share_button.mouse_exited.connect(func(): _animate_btn(share_button, 1.0))
 	
 	# Connect to RaceManager
 	if race_manager == null:
@@ -79,6 +85,9 @@ func _process(_delta: float) -> void:
 		var recorder := race_manager.get_node_or_null("GhostRecorder") as GhostRecorder
 		if recorder:
 			ghost_sync_label.text = recorder.result_message
+			share_label.text = recorder.share_message
+			share_label.visible = not recorder.share_message.is_empty()
+			share_button.disabled = not recorder.can_share_best_ghost()
 
 func format_time(seconds: float) -> String:
 	if seconds < 0.0:
@@ -305,6 +314,9 @@ func _show_results(total_time: float, lap_times: Array, best_lap_time: float) ->
 	result_best_lap.text = "YOUR LAPS  " + "  /  ".join(splits) + "\nBEST LAP  " + format_time(best_lap_time)
 	var recorder := race_manager.get_node_or_null("GhostRecorder") as GhostRecorder
 	ghost_sync_label.text = recorder.result_message if recorder else ""
+	# Sharing is a separate, explicit choice: only connected players with a complete replay see it.
+	share_button.visible = recorder != null and recorder.can_share_best_ghost()
+	share_label.visible = false
 
 	# Animate card sliding in with diagonal spring overshoot
 	results_card.pivot_offset = results_card.size / 2.0
@@ -374,6 +386,12 @@ func _on_retry_pressed() -> void:
 	_audio.play_click()
 	Engine.time_scale = 1.0
 	get_tree().reload_current_scene()
+
+func _on_share_pressed() -> void:
+	_audio.play_click()
+	var recorder := race_manager.get_node_or_null("GhostRecorder") as GhostRecorder if race_manager else null
+	if recorder:
+		recorder.share_best_ghost()
 
 func _on_title_pressed() -> void:
 	_audio.play_click()

@@ -2,11 +2,14 @@ class_name GhostRecorder extends Node
 ## Records a complete run, keeps the best replay, and persists local-first saves.
 
 signal ghost_saved(ghost_data: Dictionary, is_new_record: bool)
+signal ghost_shared(ok: bool, message: String)
 
 @export var race_manager: RaceManager
 @export var sample_rate_hz: float = 15.0
 
 var result_message := ""
+var share_message := ""
+var _sharing := false
 var _recording := false
 var _sample_timer := 0.0
 var _samples: Array = []
@@ -85,3 +88,34 @@ func _on_race_finished(total_time: float, lap_times: Array, best_lap_time: float
 	)
 	api.save_public_highscore(float(save.best_3lap_ms) / 1000.0, float(save.best_lap_ms) / 1000.0)
 	ghost_saved.emit(payload, is_record)
+
+## The best complete replay saved on this device, or empty.
+func best_ghost() -> Dictionary:
+	var api := CarPresets.get_api()
+	var saved: Variant = api.local_state.get("ghost_telemetry", {}) if api else {}
+	return GhostData.shared_document(saved, race_manager.max_laps if race_manager else 3)
+
+func can_share_best_ghost() -> bool:
+	var api := CarPresets.get_api()
+	return api != null and api.is_authenticated and not _sharing and not best_ghost().is_empty()
+
+## Explicit player action: publish only the selected replay. Private saves are untouched.
+func share_best_ghost() -> void:
+	if not can_share_best_ghost():
+		return
+	var api := CarPresets.get_api()
+	var document := best_ghost()
+	_sharing = true
+	share_message = "Sharing replay…"
+	api.publish_shared_data(document, func(ok: bool, _value: Variant):
+		_sharing = false
+		if ok:
+			share_message = "Replay shared with people you bump for 7 days"
+		elif api.last_write_status == 403:
+			share_message = "Turn on “Share selected game data” for this game in weBump, then try again"
+		elif api.last_write_status == 409:
+			share_message = "Save changed elsewhere · try sharing again"
+		else:
+			share_message = "Sharing failed · replay kept private"
+		ghost_shared.emit(ok, share_message)
+	)

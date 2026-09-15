@@ -4,16 +4,49 @@
 
 `ghost_telemetry` is a game-defined private state key. `game.state` accepts bounded
 JSON objects and arrays; the backend caps arrays at 256 items and the entire state
-at 16 KiB measured as PostgreSQL JSONB text. It is not a shared visitor resource.
+at 16 KiB measured as PostgreSQL JSONB text. It is never readable by other players.
 
 Visitor `stats` is the peer's currently shared capsule; `capsule` is its encounter
 snapshot. Approved capsule/showcase values are bounded integers, booleans, and
 enums, with a 2 KiB limit. They cannot carry the recording's sample array.
 
+`game.shared` is the third tier: one player-selected JSON document per project,
+validated against the reviewed `data_definition.shared` schema, up to 16 KiB, and
+delivered only through an authorized bump reference. That is where this game
+publishes its best replay. It is off by default per player and never appears on a
+weBump profile card.
+
 These behaviors were checked against the app repository's
-`home-api/platform/store.ts` (`visitor` and document operations),
+`home-api/platform/store.ts` (`visitor`, `getVisitorShared`, and document
+operations), `home-api/platform/shared-data.ts` (schema and payload validation),
 `home-api/platform/protocol.ts` (`stateValue` and `sharedValue`), and
 `sdk/WeBumpKit/Sources/WeBumpKit/WeBumpClient.swift`.
+
+## Shared replay flow
+
+1. The project application requests `game.shared` and declares the schema in
+   [shared_data_definition.json](shared_data_definition.json). Scope and schema
+   changes are reviewed; until approval, `PUT /v1/me/shared` returns
+   `insufficient_scope`.
+2. The player turns on **Share selected game data** for this game in the weBump
+   app. The game cannot enable it. `GET /v1/me/permissions` reports it as
+   `shared_data_sharing`; `WeBumpAPI.fetch_permissions()` caches it.
+3. **Share Replay** on the results card calls `GhostRecorder.share_best_ghost()`.
+   It builds the document with `GhostData.shared_document()`, which keeps only the
+   declared keys (`version`, `track_id`, `car_body`, `lap_count`, `total_time_ms`,
+   `samples`), then `WeBumpAPI.publish_shared_data()` sends
+   `{"publish": true, "value": …}` with the current `If-Match` revision.
+   `403 consent_required` means the toggle is off; the HUD tells the player.
+4. `WeBumpAPI.refresh_visitors()` revalidates each card and then requests
+   `GET /v1/me/visitors/:reference/shared`. A `200` attaches `data` as
+   `ghost_telemetry`; `410` means nothing is shared for that person, so the roster
+   uses AI. Publications expire after seven days and only reach bumps that happen
+   after the publication, so a rival's ghost can disappear between sessions.
+
+Validation of the schema and a worst-case 256-frame payload against the backend
+validator: 10,703 JSON bytes, about 12.2 KiB as JSONB text, under the 16 KiB cap.
+Undeclared keys, unknown car bodies, five-component frames and other versions are
+rejected server-side, so the recorder must not add fields without a schema update.
 
 ## Host responsibilities
 
@@ -30,10 +63,11 @@ These behaviors were checked against the app repository's
 4. Use `refresh_visitors()` on foreground sync before the next race. Missing or
    rejected cards are removed. Visitor cards remain session-only and are cleared
    on disconnect. Expired receipt references are not permanent player IDs.
-5. If an independently authorized replay source exists, validate its sharing
-   permission and attach its payload with `set_visitor_cards(cards)` after the
-   visitor refresh. A refresh replaces the cards, so the adapter must reauthorize
-   replay attachments too. Never read another player's private `state` directly.
+5. Replays normally arrive from the `game.shared` read inside `refresh_visitors()`.
+   A host adapter may still attach an independently authorized recording with
+   `set_visitor_cards(cards)` after the refresh; a refresh replaces the cards, so
+   the adapter must reauthorize attachments too. Never read another player's
+   private `state` directly.
 
 The game takes a roster snapshot at countdown. `set_visitor_cards` accepts up to
 50 cards and the roster picks three, prioritizing valid recordings. Malformed
@@ -41,9 +75,10 @@ recordings use AI. Names/colors come from the visitor profile, the ghost model
 comes from the recording, and AI model selection uses the optional approved
 `stats.car_body` enum. Unknown model IDs fall back to the bundled Classic Cab.
 
-## Game adapter shape
+## Card shape after refresh
 
-This is a **game-side extension**, not the current platform's Visitor schema:
+`ghost_telemetry` is filled from `GET /v1/me/visitors/:reference/shared`. It is
+not part of the plain Visitor card and a host adapter may supply it the same way:
 
 ```gdscript
 WeBumpAPI.set_visitor_cards([{
@@ -59,6 +94,7 @@ The recording contract is:
 
 ```json
 {
+  "version": 1,
   "track_id": "demo_loop_v1",
   "car_body": "truck_red",
   "lap_count": 3,
@@ -81,7 +117,7 @@ finish time rather than inferring it from a high score.
 
 ## Saving and revisions
 
-State, capsule, and showcase share one revision. The client serializes writes,
+State, capsule, showcase and the shared document share one revision. The client serializes writes,
 reads `/v1/me/state` for its strong ETag, and sends it in `If-Match`. Conflicts and
 network failures surface through callbacks and `request_failed`; no blind retry
 can overwrite a concurrent edit. All game records are persisted locally first.

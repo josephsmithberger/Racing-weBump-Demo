@@ -5,6 +5,10 @@ const TRACK_ID := "demo_loop_v1"
 const MAX_DURATION_MS := 180000
 const MAX_SAMPLES := 256
 const PAYLOAD_BUDGET := 12000 # Leave room in the shared 16 KiB state document.
+const SHARED_VERSION := 1
+## Keys declared in docs/shared_data_definition.json. The reviewed game.shared schema
+## rejects anything else, so publication strips undeclared keys before sending.
+const SHARED_KEYS := ["version", "track_id", "car_body", "lap_count", "total_time_ms", "samples"]
 
 static func is_valid(value: Variant, laps: int = 3) -> bool:
 	if not value is Dictionary:
@@ -49,3 +53,15 @@ static func compact(payload: Dictionary) -> Dictionary:
 		samples = reduced
 		result["samples"] = samples
 	return result
+
+## The exact document sent to PUT /v1/me/shared. Empty when the recording is not shareable.
+static func shared_document(recording: Variant, laps: int = 3) -> Dictionary:
+	if not is_valid(recording, laps) or not CarPresets.has_preset(str(recording.get("car_body", ""))):
+		return {}
+	var document := {"version": SHARED_VERSION, "track_id": TRACK_ID}
+	for key in SHARED_KEYS:
+		if recording.has(key):
+			document[key] = recording[key]
+	if document.get("version", SHARED_VERSION) != SHARED_VERSION:
+		return {}
+	return document.duplicate(true)
