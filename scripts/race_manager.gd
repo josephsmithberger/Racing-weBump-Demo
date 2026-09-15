@@ -185,7 +185,7 @@ func _build_leaderboard() -> void:
 		elif entry.time >= 0:
 			row.status = "Finished"
 		else:
-			row.status = "Estimated"
+			row.status = "Finished"
 			for rival in rivals:
 				if is_instance_valid(rival) and rival.rival_id == entry.id:
 					row.time = rival.estimate_finish_time(total_time)

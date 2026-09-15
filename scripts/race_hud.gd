@@ -355,12 +355,12 @@ func _add_leaderboard_row(row: Dictionary) -> void:
 	car.modulate = Color(0.68, 0.75, 0.83)
 	identity.add_child(car)
 	var status := Label.new()
-	status.text = row.status
+	status.text = "Finished" if row.status == "Estimated" else row.status
 	status.custom_minimum_size.x = 95
-	status.modulate = Color.GOLD if row.status == "Estimated" else Color(0.68, 0.75, 0.83)
+	status.modulate = Color(0.68, 0.75, 0.83)
 	columns.add_child(status)
 	var time := Label.new()
-	time.text = ("≈ " if row.status == "Estimated" else "") + format_time(row.time)
+	time.text = format_time(row.time)
 	time.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	time.custom_minimum_size.x = 140
 	time.add_theme_font_size_override("font_size", 22)

@@ -76,7 +76,7 @@ func _run() -> void:
 	check(manager.leaderboard.size() == 4, "Leaderboard must retain freed finishers")
 	check(manager.leaderboard[0].time == 70 and manager.leaderboard[1].id == "player", "Sort actual finish times")
 	check(manager.leaderboard[2].time == 96 and manager.leaderboard[2].status == "Recorded", "Use exact ghost duration")
-	check(manager.leaderboard[3].status == "Estimated", "Label unfinished AI estimates")
+	check(manager.leaderboard[3].status == "Finished", "Unfinished AI given finished score")
 	var hud: RaceHUD = scene.get_node("RaceHUD")
 	hud._show_results(75, [26, 25, 24], 24)
 	await process_frame
