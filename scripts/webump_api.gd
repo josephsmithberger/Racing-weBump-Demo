@@ -19,6 +19,10 @@ signal showcase_saved(value: Dictionary)
 signal showcase_loaded(value: Dictionary)
 signal shared_data_published(value: Dictionary)
 signal permissions_loaded(permissions: Dictionary)
+## Approval is waiting on the player's phone. `qr` is null when the weBump app was
+## opened directly on this device, so no code needs scanning.
+signal approval_started(qr: Texture2D, approval_url: String)
+signal approval_finished()
 signal visitors_updated(cards: Array)
 signal visitors_failed(error_message: String)
 signal request_failed(operation: String, status: int)
@@ -154,7 +158,17 @@ func _await_approval(begin: Dictionary) -> void:
 		_route_callback("", "", "invalid_request")
 		return
 	await _http("/oauth/pending", HTTPClient.METHOD_POST, {"request": request})
-	_open_approval(str(begin.get("app_url", "")), str(begin.get("authorization_url", "")))
+	var approval_url := str(begin.get("authorization_url", ""))
+	if _opens_app_directly():
+		_open_approval(str(begin.get("app_url", "")), approval_url)
+		approval_started.emit(null, approval_url)
+	else:
+		# Any other device: the player approves on their phone by scanning. Nothing is
+		# opened here, so nothing depends on a popup the browser may block.
+		var qr_url := str(begin.get("qr_url", ""))
+		if qr_url.is_empty():
+			qr_url = api_origin + "/oauth/qr?request=" + request.uri_encode()
+		approval_started.emit(await _load_qr(qr_url), approval_url)
 	var deadline := Time.get_unix_time_from_system() + 300.0
 	while generation == _session_generation and Time.get_unix_time_from_system() < deadline:
 		await get_tree().create_timer(2.0).timeout
@@ -167,19 +181,53 @@ func _await_approval(begin: Dictionary) -> void:
 			var redirect := str(status.data.get("redirect_uri", ""))
 			if redirect.is_empty():
 				break
+			approval_finished.emit()
 			_deliver_callback_url(redirect)
 			return
 	if generation == _session_generation:
+		approval_finished.emit()
 		_route_callback("", "", "expired")
 
-## The approval page finishes in the weBump app. On an iPhone the export shell opens the
-## app directly; elsewhere it opens the approval page (a QR code) in a popup.
+## True only where tapping can hand straight to the weBump app: an iPhone running
+## this game in a browser. Everywhere else the player approves on a separate phone.
+func _opens_app_directly() -> bool:
+	if not OS.has_feature("web"):
+		return false
+	var ios: Variant = JavaScriptBridge.eval("/iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)", true)
+	return ios is bool and ios
+
 func _open_approval(app_url: String, page_url: String) -> void:
-	if OS.has_feature("web"):
-		JavaScriptBridge.eval("window.webumpOpenApproval ? window.webumpOpenApproval(%s, %s) : window.open(%s, '_blank')" % [
-			JSON.stringify(app_url), JSON.stringify(page_url), JSON.stringify(page_url)], true)
-	else:
-		OS.shell_open(page_url)
+	JavaScriptBridge.eval("window.webumpOpenApproval ? window.webumpOpenApproval(%s, %s) : window.open(%s, '_blank')" % [
+		JSON.stringify(app_url), JSON.stringify(page_url), JSON.stringify(page_url)], true)
+
+## Stops waiting for an approval still pending on the player's phone. Nothing is
+## authorized by cancelling; the request simply expires on its own.
+func cancel_approval() -> void:
+	if not is_connecting and _handoff_pkce.is_empty():
+		return
+	_session_generation += 1
+	_handoff_pkce.clear()
+	approval_finished.emit()
+	if is_connecting:
+		_fail_connection("Connection cancelled")
+
+## The approval QR as a texture. Any failure returns null and the panel falls back
+## to showing the link, so a missing image never blocks connecting.
+func _load_qr(url: String) -> Texture2D:
+	var http := HTTPRequest.new()
+	http.timeout = 10.0
+	add_child(http)
+	if http.request(url, PackedStringArray(["Accept: image/svg+xml"])) != OK:
+		http.queue_free()
+		return null
+	var response: Array = await http.request_completed
+	http.queue_free()
+	if response[0] != HTTPRequest.RESULT_SUCCESS or response[1] != 200:
+		return null
+	var image := Image.new()
+	if image.load_svg_from_string(response[3].get_string_from_utf8(), 2.0) != OK:
+		return null
+	return ImageTexture.create_from_image(image)
 
 ## Parse the registered callback URL exactly as a redirect handler would.
 func _deliver_callback_url(url: String) -> void:

@@ -106,10 +106,12 @@ OAuth callback. Export from the editor or:
 `build/` is gitignored. The export is published on this repository's
 `gh-pages` branch and embedded by [webump.app/demo](https://webump.app/demo),
 which is also the registered OAuth callback. The game is a public OAuth
-client: it fetches the approval request as JSON, opens weBump directly on an
-iPhone or a QR code elsewhere, polls the API for the result, and keeps tokens in
-memory. Desktop builds work the same way through the system browser; the editor
-stays in mock mode.
+client: it fetches the approval request as JSON, opens weBump directly when the
+player is already on the iPhone running it, and otherwise draws the API's QR code
+on the title screen for them to scan with their phone. Either way it polls the
+API for the result and keeps tokens in memory. Desktop and native builds use the
+same scannable path, so nothing depends on a browser or a popup; the editor stays
+in mock mode.
 
 ## Verify
 

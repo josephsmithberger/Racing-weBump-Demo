@@ -53,13 +53,14 @@ rejected server-side, so the recorder must not add fields without a schema updat
 The demo is a public OAuth client. `_start_live_oauth_flow()` requests
 `/oauth/authorize` with `Accept: application/json` and `display=popup`, which
 returns `authorization_url`, `app_url` and `request` instead of redirecting.
-`_await_approval()` announces the game with `POST /oauth/pending`, asks the
-export shell (`web/shell.html`) to open the approval, and polls
-`GET /oauth/pending` every two seconds for up to five minutes. On an iPhone the
-shell opens `app_url` (`webump://connect?…`), which opens weBump directly; the
-player approves and returns to Safari, where the game is already connected.
-Elsewhere the shell opens `authorization_url` in a popup, which shows a QR code
-and closes itself once the phone decides. The callback URL delivered by polling
+`_await_approval()` announces the game with `POST /oauth/pending` and polls
+`GET /oauth/pending` every two seconds for up to five minutes. When the player is
+already on the iPhone running weBump, the export shell (`web/shell.html`) opens
+`app_url` (`webump://connect?…`) and they return to Safari already connected.
+Everywhere else the game fetches `qr_url`, rasterizes the SVG with
+`Image.load_svg_from_string`, and shows it on the title screen: the player scans
+it with their phone, approves there, and the poll finishes on the screen in front
+of them. Nothing is opened, so no popup can be blocked. The callback URL delivered by polling
 is parsed like a redirect and routed by `state` to `exchange_authorization_code()`
 or `redeem_visitor_handoff()`. Desktop builds follow the same path with the
 system browser. The API answers CORS for `/oauth/*` and `/v1/*`.

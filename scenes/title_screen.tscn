@@ -533,3 +533,61 @@ horizontal_alignment = 1
 
 [node name="RaceAudio" type="Node" parent="."]
 script = ExtResource("4_audio")
+
+[node name="ApprovalPanel" type="ColorRect" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.0392157, 0.0470588, 0.0784314, 0.937255)
+
+[node name="Center" type="CenterContainer" parent="ApprovalPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Box" type="VBoxContainer" parent="ApprovalPanel/Center"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="ApprovalTitle" type="Label" parent="ApprovalPanel/Center/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 26
+text = "Scan with your iPhone"
+horizontal_alignment = 1
+
+[node name="ApprovalQR" type="TextureRect" parent="ApprovalPanel/Center/Box"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(260, 260)
+layout_mode = 2
+size_flags_horizontal = 4
+expand_mode = 1
+stretch_mode = 5
+
+[node name="ApprovalStatus" type="Label" parent="ApprovalPanel/Center/Box"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(420, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.68, 0.74, 0.84, 1)
+theme_override_font_sizes/font_size = 14
+text = "Open the Camera app and point it at this code. Approve in weBump and this screen continues on its own."
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="ApprovalCancel" type="Button" parent="ApprovalPanel/Center/Box"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_default_cursor_shape = 2
+theme_override_font_sizes/font_size = 16
+text = "CANCEL"

@@ -20,6 +20,11 @@ extends Control
 @onready var car_tabs_container: HBoxContainer = %CarTabsContainer
 @onready var _preview_nameplate: Label3D = %PreviewNameplate
 @onready var _audio: RaceAudio = $RaceAudio
+@onready var approval_panel: ColorRect = %ApprovalPanel
+@onready var approval_title: Label = %ApprovalTitle
+@onready var approval_qr: TextureRect = %ApprovalQR
+@onready var approval_status: Label = %ApprovalStatus
+@onready var approval_cancel: Button = %ApprovalCancel
 
 # Action buttons & loading
 @onready var connect_button: WeBumpConnectButton = %WeBumpConnectButton
@@ -57,8 +62,12 @@ func _ready() -> void:
 	if connect_button:
 		connect_button.connection_started.connect(_on_connection_started)
 		connect_button.connection_changed.connect(_on_connection_changed)
+	approval_panel.visible = false
+	approval_cancel.pressed.connect(_on_approval_cancelled)
 	var api = _get_api()
 	if api:
+		api.approval_started.connect(_on_approval_started)
+		api.approval_finished.connect(_on_approval_finished)
 		api.visitors_updated.connect(_on_visitors_updated)
 		if api.is_authenticated and not api.is_mock_mode:
 			_on_visitors_updated(api.visitor_cards)
@@ -395,6 +404,34 @@ func _on_connection_changed(connected: bool, profile: Dictionary) -> void:
 	else:
 		play_button.text = "START RACE"
 		_setup_mode_display()
+
+# ===================================================================
+# APPROVAL: the player approves on their phone, by scan or by tap
+# ===================================================================
+func _on_approval_started(qr: Texture2D, approval_url: String) -> void:
+	if qr == null:
+		# weBump opened on this device; there is nothing to scan.
+		approval_title.text = "Finish in weBump"
+		approval_qr.visible = false
+		approval_status.text = "Approve in the weBump app, then come back here. This screen continues on its own."
+	else:
+		approval_title.text = "Scan with your iPhone"
+		approval_qr.texture = qr
+		approval_qr.visible = true
+		approval_status.text = "Open the Camera app and point it at this code, then approve in weBump. This screen continues on its own.\n%s" % approval_url
+	approval_panel.visible = true
+
+func _on_approval_finished() -> void:
+	approval_panel.visible = false
+	approval_qr.texture = null
+
+func _on_approval_cancelled() -> void:
+	if _audio:
+		_audio.play_click()
+	var api = _get_api()
+	if api:
+		api.cancel_approval()
+	approval_panel.visible = false
 
 # ===================================================================
 # VISITORS: everyone the player bumped since connecting, refreshed automatically
