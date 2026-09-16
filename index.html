@@ -37,19 +37,24 @@ body { color: white; background-color: #0b0e16; overflow: hidden; touch-action: 
 // ---------------------------------------------------------------------------
 // weBump approval relay.
 //
-// The game (scripts/webump_api.gd) calls window.webumpOpenApproval(url) to open
-// the weBump approval page in a popup. The registered callback page
-// (https://webump.app/demo) posts {type, code, state, error} back to this
-// window and closes itself. We accept messages only from that origin and only
-// from the window we opened, then hand the result to the game through the
-// callback it registered as window.webumpDeliverCallback.
+// The game (scripts/webump_api.gd) calls window.webumpOpenApproval(appUrl, pageUrl)
+// and then polls the API for the result itself. The message listener below is a
+// fallback for a callback page that posts {type, code, state, error} to its opener.
 // ---------------------------------------------------------------------------
 const APPROVAL_ORIGIN = 'https://webump.app';
 let approvalWindow = null;
-window.webumpOpenApproval = function (url) {
-	approvalWindow = window.open(url, 'webump-approval', 'popup,width=520,height=780');
+// On an iPhone the app link opens weBump directly and the game keeps polling in this
+// tab; elsewhere the approval page opens in a popup and shows a QR code.
+window.webumpOpenApproval = function (appUrl, pageUrl) {
+	const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+		(navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+	if (isIOS && appUrl) {
+		window.location.href = appUrl;
+		return true;
+	}
+	approvalWindow = window.open(pageUrl, 'webump-approval', 'popup,width=520,height=780');
 	if (!approvalWindow) {
-		approvalWindow = window.open(url, '_blank'); // Popup blocked: fall back to a tab.
+		approvalWindow = window.open(pageUrl, '_blank'); // Popup blocked: fall back to a tab.
 	}
 	return Boolean(approvalWindow);
 };
@@ -63,7 +68,7 @@ window.addEventListener('message', (event) => {
 	}
 });
 
-const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":false,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":1992024,"index.wasm":39509339},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":false,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":1993496,"index.wasm":39509339},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
 const GODOT_THREADS_ENABLED = false;
 const engine = new Engine(GODOT_CONFIG);
 (function () {
