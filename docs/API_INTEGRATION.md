@@ -60,7 +60,13 @@ already on the iPhone running weBump, the export shell (`web/shell.html`) opens
 Everywhere else the game fetches `qr_url`, rasterizes the SVG with
 `Image.load_svg_from_string`, and shows it on the title screen: the player scans
 it with their phone, approves there, and the poll finishes on the screen in front
-of them. Nothing is opened, so no popup can be blocked. The callback URL delivered by polling
+of them. Nothing is opened, so no popup can be blocked.
+
+The choice between the two is `approval_display` in `config.json`: `auto` (open
+the app on an iPhone, scan anywhere else), `app`, or `scan`. The API returns
+`app_url` and `qr_url` on every request, so this is presentation only. `auto`
+uses Godot's `ios` / `web_ios` feature tags rather than sniffing the browser; a
+game that already knows its platform should set the value explicitly instead. The callback URL delivered by polling
 is parsed like a redirect and routed by `state` to `exchange_authorization_code()`
 or `redeem_visitor_handoff()`. Desktop builds follow the same path with the
 system browser. The API answers CORS for `/oauth/*` and `/v1/*`.

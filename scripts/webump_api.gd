@@ -36,6 +36,10 @@ var client_id := "wb_5c296d5bb9144ad9a039d24056eaa802"
 var api_origin := "https://api.webump.app"
 var redirect_uri := "https://webump.app/demo"
 var scopes: Array = ["profile.basic", "game.state", "visitors.receive", "game.capsule", "game.showcase", "game.shared"]
+## How the player is asked to approve. "auto" opens the weBump app when this game is
+## running on an iPhone and shows a scannable code everywhere else; "app" and "scan"
+## force one of the two. Set it in config.json when you know your platform.
+var approval_display := "auto"
 
 var is_editor_mode := OS.has_feature("editor")
 var is_mock_mode := OS.has_feature("editor")
@@ -89,6 +93,10 @@ func _load_config() -> void:
 		api_origin = parsed.get("api_origin", api_origin)
 		redirect_uri = parsed.get("redirect_uri", redirect_uri)
 		scopes = parsed.get("scopes", scopes)
+		approval_display = str(parsed.get("approval_display", approval_display))
+		if not ["auto", "app", "scan"].has(approval_display):
+			push_warning("Unknown approval_display %s; using auto." % approval_display)
+			approval_display = "auto"
 
 func get_mode_description() -> String:
 	if is_mock_mode:
@@ -188,17 +196,26 @@ func _await_approval(begin: Dictionary) -> void:
 		approval_finished.emit()
 		_route_callback("", "", "expired")
 
-## True only where tapping can hand straight to the weBump app: an iPhone running
-## this game in a browser. Everywhere else the player approves on a separate phone.
+## Whether approval hands straight to the weBump app on this device, or the player
+## scans a code with a separate phone. The API returns both links every time; this
+## is purely a presentation choice, so a game that knows its platform should say so
+## through `approval_display` rather than leave it to detection.
 func _opens_app_directly() -> bool:
-	if not OS.has_feature("web"):
-		return false
-	var ios: Variant = JavaScriptBridge.eval("/iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)", true)
-	return ios is bool and ios
+	match approval_display:
+		"app":
+			return true
+		"scan":
+			return false
+		_:
+			# weBump is an iPhone app, so only an iPhone can approve without scanning.
+			return OS.has_feature("ios") or OS.has_feature("web_ios")
 
 func _open_approval(app_url: String, page_url: String) -> void:
-	JavaScriptBridge.eval("window.webumpOpenApproval ? window.webumpOpenApproval(%s, %s) : window.open(%s, '_blank')" % [
-		JSON.stringify(app_url), JSON.stringify(page_url), JSON.stringify(page_url)], true)
+	if OS.has_feature("web"):
+		JavaScriptBridge.eval("window.webumpOpenApproval ? window.webumpOpenApproval(%s, %s) : window.open(%s, '_blank')" % [
+			JSON.stringify(app_url), JSON.stringify(page_url), JSON.stringify(page_url)], true)
+	else:
+		OS.shell_open(page_url if app_url.is_empty() else app_url)
 
 ## Stops waiting for an approval still pending on the player's phone. Nothing is
 ## authorized by cancelling; the request simply expires on its own.

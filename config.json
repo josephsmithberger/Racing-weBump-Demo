@@ -10,5 +10,6 @@
     "game.capsule",
     "game.showcase",
     "game.shared"
-  ]
+  ],
+  "approval_display": "auto"
 }
