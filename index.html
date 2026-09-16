@@ -42,6 +42,7 @@ body { color: white; background-color: #0b0e16; overflow: hidden; touch-action: 
 // fallback for a callback page that posts {type, code, state, error} to its opener.
 // ---------------------------------------------------------------------------
 const APPROVAL_ORIGIN = 'https://webump.app';
+const HOST_ORIGIN = 'https://webump.app'; // The page allowed to embed this game.
 let approvalWindow = null;
 // On an iPhone the app link opens weBump directly and the game keeps polling in this
 // tab; elsewhere the approval page opens in a popup and shows a QR code.
@@ -49,7 +50,13 @@ window.webumpOpenApproval = function (appUrl, pageUrl) {
 	const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
 		(navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 	if (isIOS && appUrl) {
-		window.location.href = appUrl;
+		// Safari blocks custom-scheme navigation from a cross-origin frame, so when this
+		// game is embedded the host page opens the app from the top level instead.
+		if (window.parent !== window) {
+			window.parent.postMessage({ type: 'webump-open-app', url: appUrl }, HOST_ORIGIN);
+		} else {
+			window.location.href = appUrl;
+		}
 		return true;
 	}
 	approvalWindow = window.open(pageUrl, 'webump-approval', 'popup,width=520,height=780');
