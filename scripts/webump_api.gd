@@ -216,6 +216,11 @@ func fetch_player_profile() -> void:
 	current_player_profile["mode"] = "Live API"
 	is_authenticated = true
 	is_connecting = false
+	# Remember who played here (name and color only) so a return visit greets them
+	# instead of looking like a fresh install. Tokens are never stored.
+	local_state["known_player"] = {"display_name": get_player_display_name(), "theme_color": get_player_theme_color_hex(),
+		"connected_at": Time.get_datetime_string_from_system()}
+	_save_local_state()
 	await get_state("racing_save")
 	await fetch_permissions()
 	auth_succeeded.emit(current_player_profile, false)
@@ -384,9 +389,20 @@ func set_selected_car_body(body_id: String) -> void:
 func get_selected_car_body() -> String:
 	return selected_car_body
 
+## The player who last connected on this device, or empty. Used only for greetings.
+func known_player() -> Dictionary:
+	var known: Variant = local_state.get("known_player", {})
+	return known if known is Dictionary else {}
+
+func has_progress() -> bool:
+	var save: Variant = local_state.get("racing_save", {})
+	return save is Dictionary and int(save.get("races", 0)) > 0
+
 func get_player_display_name() -> String:
 	if is_authenticated and current_player_profile.has("display_name"):
 		return str(current_player_profile.display_name)
+	if not is_mock_mode and known_player().has("display_name"):
+		return str(known_player().display_name)
 	return "Player"
 
 func get_player_theme_color() -> Color:

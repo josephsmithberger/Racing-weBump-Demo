@@ -91,7 +91,17 @@ func _setup_mode_display() -> void:
 		hint_label.text = "Connect to weBump to sync your profile & custom colors"
 	else:
 		mode_banner.visible = false
-		hint_label.text = "Connect with weBump to race the people you bump"
+		var known: Dictionary = api.known_player() if api else {}
+		if not connected and known.has("display_name"):
+			hint_label.text = "Welcome back, %s - %s Connect with weBump to race again" % [
+				str(known.display_name), "your progress is saved on this device." if api.has_progress() else "your settings are saved."]
+		else:
+			var known: Dictionary = api.known_player() if api else {}
+		if not connected and known.has("display_name"):
+			hint_label.text = "Welcome back, %s - %s Connect with weBump to race again" % [
+				str(known.display_name), "your progress is saved on this device." if api.has_progress() else "your settings are saved."]
+		else:
+			hint_label.text = "Connect with weBump to race the people you bump"
 	hint_label.add_theme_color_override("font_color", Color(0.55, 0.62, 0.75, 1.0))
 
 # ===================================================================
