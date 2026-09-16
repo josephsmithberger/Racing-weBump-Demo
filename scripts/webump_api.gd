@@ -135,20 +135,59 @@ func _start_live_oauth_flow() -> void:
 	var pkce := _generate_pkce_pair()
 	_current_verifier = pkce.verifier
 	_current_state = pkce.state
-	# display=popup: the approval page waits for the phone and hands the callback back
-	# to the popup this game opened. Native apps omit it.
-	var auth_url := "%s/oauth/authorize?response_type=code&client_id=%s&redirect_uri=%s&scope=%s&code_challenge=%s&code_challenge_method=S256&state=%s&display=popup" % [
-		api_origin, client_id.uri_encode(), redirect_uri.uri_encode(), " ".join(scopes).uri_encode(), pkce.challenge, pkce.state]
-	_open_approval(auth_url)
+	# display=popup with Accept: application/json returns the request as JSON instead of
+	# redirecting, so this game can open the app or the QR page itself and poll for the result.
+	var query := "response_type=code&client_id=%s&redirect_uri=%s&scope=%s&code_challenge=%s&code_challenge_method=S256&state=%s&display=popup" % [
+		client_id.uri_encode(), redirect_uri.uri_encode(), " ".join(scopes).uri_encode(), pkce.challenge, pkce.state]
+	var response := await _http("/oauth/authorize?" + query, HTTPClient.METHOD_GET)
+	if not response.ok:
+		_fail_connection("Could not start the connection (HTTP %d)" % response.status)
+		return
+	await _await_approval(response.data)
 
-## The approval page finishes in the weBump app. On the web the export shell opens a
-## popup and relays the callback; elsewhere the system browser opens it.
-func _open_approval(url: String) -> void:
+## Announce this game as the waiting client, open the approval, and poll until the phone
+## decides. The callback URL arrives here exactly once; the player never leaves this tab.
+func _await_approval(begin: Dictionary) -> void:
+	var request := str(begin.get("request", ""))
+	var generation := _session_generation
+	if request.is_empty():
+		_route_callback("", "", "invalid_request")
+		return
+	await _http("/oauth/pending", HTTPClient.METHOD_POST, {"request": request})
+	_open_approval(str(begin.get("app_url", "")), str(begin.get("authorization_url", "")))
+	var deadline := Time.get_unix_time_from_system() + 300.0
+	while generation == _session_generation and Time.get_unix_time_from_system() < deadline:
+		await get_tree().create_timer(2.0).timeout
+		if generation != _session_generation:
+			return
+		var status := await _http("/oauth/pending?request=" + request.uri_encode(), HTTPClient.METHOD_GET)
+		if status.status == 404:
+			break
+		if status.ok and status.data.get("status") == "complete":
+			var redirect := str(status.data.get("redirect_uri", ""))
+			if redirect.is_empty():
+				break
+			_deliver_callback_url(redirect)
+			return
+	if generation == _session_generation:
+		_route_callback("", "", "expired")
+
+## The approval page finishes in the weBump app. On an iPhone the export shell opens the
+## app directly; elsewhere it opens the approval page (a QR code) in a popup.
+func _open_approval(app_url: String, page_url: String) -> void:
 	if OS.has_feature("web"):
-		var quoted := JSON.stringify(url)
-		JavaScriptBridge.eval("window.webumpOpenApproval ? window.webumpOpenApproval(%s) : window.open(%s, '_blank')" % [quoted, quoted], true)
+		JavaScriptBridge.eval("window.webumpOpenApproval ? window.webumpOpenApproval(%s, %s) : window.open(%s, '_blank')" % [
+			JSON.stringify(app_url), JSON.stringify(page_url), JSON.stringify(page_url)], true)
 	else:
-		OS.shell_open(url)
+		OS.shell_open(page_url)
+
+## Parse the registered callback URL exactly as a redirect handler would.
+func _deliver_callback_url(url: String) -> void:
+	var params := {}
+	var query := url.get_slice("?", 1).get_slice("#", 0)
+	for pair in query.split("&", false):
+		params[pair.get_slice("=", 0).uri_decode()] = pair.get_slice("=", 1).uri_decode()
+	_route_callback(str(params.get("code", "")), str(params.get("state", "")), str(params.get("error", "")))
 
 ## Deliver the callback's code and state exactly as returned to the registered redirect.
 func exchange_authorization_code(code: String, returned_state: String = "") -> void:
@@ -217,14 +256,14 @@ func disconnect_player(revoke: bool = true) -> void:
 func _revoke(token: String) -> void:
 	await _http("/oauth/revoke", HTTPClient.METHOD_POST, {"client_id": client_id, "token": token})
 
-## Browser callback relay (see web/shell.html). Routes by state to the pending flow.
+## Legacy popup relay (see web/shell.html): the callback page posts code/state back.
 func _on_web_callback(args: Array) -> void:
 	var payload: Variant = JSON.parse_string(str(args[0])) if not args.is_empty() else null
-	if not payload is Dictionary:
-		return
-	var state := str(payload.get("state", ""))
-	var error := str(payload.get("error", ""))
-	var code := str(payload.get("code", ""))
+	if payload is Dictionary:
+		_route_callback(str(payload.get("code", "")), str(payload.get("state", "")), str(payload.get("error", "")))
+
+## Routes a callback by state to the pending connect or visitor flow.
+func _route_callback(code: String, state: String, error: String) -> void:
 	if not _handoff_pkce.is_empty() and state == str(_handoff_pkce.get("state", "")):
 		if not error.is_empty():
 			_handoff_pkce.clear()
@@ -232,8 +271,15 @@ func _on_web_callback(args: Array) -> void:
 		elif not await redeem_visitor_handoff(code, state):
 			visitors_failed.emit("Visitor handoff could not be completed")
 		return
+	if not _handoff_pkce.is_empty() and state.is_empty() and not error.is_empty():
+		_handoff_pkce.clear()
+		visitors_failed.emit("Visitor handoff " + ("expired" if error == "expired" else "failed"))
+		return
 	if not error.is_empty():
-		_fail_connection("Connection request was cancelled on your phone" if error == "access_denied" else "Connection error: " + error)
+		match error:
+			"access_denied": _fail_connection("Connection request was cancelled on your phone")
+			"expired": _fail_connection("The connection request expired. Press Connect to try again")
+			_: _fail_connection("Connection error: " + error)
 		return
 	exchange_authorization_code(code, state)
 
@@ -510,7 +556,7 @@ func request_visitors() -> bool:
 	if not response.ok or not response.data.get("authorization_url") is String:
 		visitors_failed.emit("Could not start the visitor handoff (HTTP %d)" % response.status)
 		return false
-	_open_approval(response.data.authorization_url)
+	_await_approval(response.data)
 	return true
 
 func begin_visitor_handoff() -> Dictionary:

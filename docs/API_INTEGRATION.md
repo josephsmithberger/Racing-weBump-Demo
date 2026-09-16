@@ -48,18 +48,21 @@ validator: 10,703 JSON bytes, about 12.2 KiB as JSONB text, under the 16 KiB cap
 Undeclared keys, unknown car bodies, five-component frames and other versions are
 rejected server-side, so the recorder must not add fields without a schema update.
 
-## Web callback and session
+## Approval flow and session
 
-The demo is a public OAuth client. `web/shell.html` (the custom export shell)
-exposes `window.webumpOpenApproval(url)`, which opens the weBump approval page
-in a popup, and listens for a `message` from the registered callback origin
-(`https://webump.app`). The callback page posts `{type: "webump-callback",
-code, state, error}` to the opener and closes; the shell forwards it to the
-callback the game registered as `window.webumpDeliverCallback`.
-`WeBumpAPI._on_web_callback()` routes by `state`: the pending connect flow calls
-`exchange_authorization_code()`, the pending visitor handoff calls
-`redeem_visitor_handoff()`. The API answers CORS for `/oauth/token`,
-`/oauth/revoke` and `/v1/*`, so the export talks to it directly.
+The demo is a public OAuth client. `_start_live_oauth_flow()` requests
+`/oauth/authorize` with `Accept: application/json` and `display=popup`, which
+returns `authorization_url`, `app_url` and `request` instead of redirecting.
+`_await_approval()` announces the game with `POST /oauth/pending`, asks the
+export shell (`web/shell.html`) to open the approval, and polls
+`GET /oauth/pending` every two seconds for up to five minutes. On an iPhone the
+shell opens `app_url` (`webump://connect?…`), which opens weBump directly; the
+player approves and returns to Safari, where the game is already connected.
+Elsewhere the shell opens `authorization_url` in a popup, which shows a QR code
+and closes itself once the phone decides. The callback URL delivered by polling
+is parsed like a redirect and routed by `state` to `exchange_authorization_code()`
+or `redeem_visitor_handoff()`. Desktop builds follow the same path with the
+system browser. The API answers CORS for `/oauth/*` and `/v1/*`.
 
 Tokens stay in memory. Access tokens last ten minutes; `_ensure_fresh_token()`
 refreshes once, shortly before expiry, with the rotating refresh token. A
@@ -73,8 +76,7 @@ be retried). Disconnecting revokes the refresh token best-effort.
 2. Visitor cards are session-only and cleared on disconnect. Expired receipt
    references are not permanent player IDs. Missing or rejected cards are
    dropped on refresh: revoked or expired rivals are never raced from cache.
-3. Desktop builds open the approval in the system browser but receive no
-   callback; live mode is a web feature and the editor uses mock mode.
+3. The editor uses mock mode; every export, including desktop, is live.
 
 The game takes a roster snapshot at countdown. `set_visitor_cards` accepts up to
 50 cards and the roster picks three, prioritizing valid recordings. Malformed
