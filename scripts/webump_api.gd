@@ -207,8 +207,22 @@ func _opens_app_directly() -> bool:
 		"scan":
 			return false
 		_:
-			# weBump is an iPhone app, so only an iPhone can approve without scanning.
-			return OS.has_feature("ios") or OS.has_feature("web_ios")
+			# weBump is an iOS app, so only an iOS device can approve without scanning.
+			return _is_apple_mobile()
+
+## Whether this device can hand straight to an iOS app. Godot's `web_ios` feature reads
+## the user agent, which iPadOS deliberately reports as a Mac for desktop-class browsing,
+## so an iPad is indistinguishable from a desktop by user agent alone. A Mac that reports
+## more than one touch point is an iPad; a real Mac reports none.
+func _is_apple_mobile() -> bool:
+	if OS.has_feature("ios") or OS.has_feature("web_ios"):
+		return true
+	if not OS.has_feature("web"):
+		return false
+	var touch_mac: Variant = JavaScriptBridge.eval(
+		"(navigator.maxTouchPoints > 1 && /Mac|iPad|iPhone|iPod/.test(navigator.platform || navigator.userAgent || '')) ? 1 : 0",
+		true)
+	return typeof(touch_mac) in [TYPE_BOOL, TYPE_INT, TYPE_FLOAT] and int(touch_mac) == 1
 
 func _open_approval(app_url: String, page_url: String) -> void:
 	if OS.has_feature("web"):

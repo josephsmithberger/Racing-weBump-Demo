@@ -25,7 +25,6 @@ config/icon="res://icon.png"
 [autoload]
 
 WeBumpAPI="*res://scripts/webump_api.gd"
-PerfProbe="*res://scripts/perf_probe.gd"
 
 [display]
 
