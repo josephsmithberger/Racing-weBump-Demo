@@ -79,12 +79,12 @@ func _on_race_finished(total_time: float, lap_times: Array, best_lap_time: float
 	var improves_ghost := not GhostData.is_valid(saved_ghost) or total_ms < int(saved_ghost.get("total_time_ms", 0))
 	if complete and improves_ghost and GhostData.is_valid(payload, race_manager.max_laps):
 		api.save_ghost_telemetry(payload)
-	result_message = "Personal best saved on this device" if is_record else "Race saved · Personal best preserved"
+	result_message = "Personal best saved on this device" if is_record else "Race saved - Personal best preserved"
 	if not complete:
-		result_message += " · Replay limit: 3 minutes"
+		result_message += " - Replay limit: 3 minutes"
 	api.put_state("racing_save", save, func(ok: bool, _value: Variant):
 		if api.is_authenticated and not api.is_mock_mode:
-			result_message += " · weBump save confirmed" if ok else " · Cloud save failed; local save kept"
+			result_message += " - weBump save confirmed" if ok else " - Cloud save failed; local save kept"
 	)
 	api.save_public_highscore(float(save.best_3lap_ms) / 1000.0, float(save.best_lap_ms) / 1000.0)
 	ghost_saved.emit(payload, is_record)
@@ -106,16 +106,16 @@ func share_best_ghost() -> void:
 	var api := CarPresets.get_api()
 	var document := best_ghost()
 	_sharing = true
-	share_message = "Sharing replay…"
+	share_message = "Sharing replay..."
 	api.publish_shared_data(document, func(ok: bool, _value: Variant):
 		_sharing = false
 		if ok:
 			share_message = "Replay shared with people you bump for 7 days"
 		elif api.last_write_status == 403:
-			share_message = "Turn on “Share selected game data” for this game in weBump, then try again"
+			share_message = "Turn on 'Share selected game data' for this game in weBump, then try again"
 		elif api.last_write_status == 409:
-			share_message = "Save changed elsewhere · try sharing again"
+			share_message = "Save changed elsewhere - try sharing again"
 		else:
-			share_message = "Sharing failed · replay kept private"
+			share_message = "Sharing failed - replay kept private"
 		ghost_shared.emit(ok, share_message)
 	)

@@ -31,8 +31,7 @@ listens to its signals.
 | Private save (never visible to others) | `GET /v1/me/state`, `PUT /v1/me/state/:key` | `game.state` | `racing_save`, `ghost_telemetry` |
 | Public high score on bump cards / profile | `PUT /v1/me/capsule`, `PUT /v1/me/showcase` | `game.capsule`, `game.showcase` | `save_public_highscore()` |
 | Share one replay, on purpose | `PUT /v1/me/shared` (`{"publish":true,…}`) | `game.shared` | **Share Replay** button on the results card |
-| Bring in bumps | `POST /v1/me/visitor-handoff` (begin / redeem) | `visitors.receive` | **Bring in your bumps** on the title screen |
-| Revalidate rivals and fetch their replay | `GET /v1/me/visitors/:ref`, `…/:ref/shared` | `visitors.receive` + `game.shared` | `refresh_visitors()` → `RivalRoster` |
+| Rivals from real bumps | `GET /v1/me/visitors`, `…/:ref/shared` | `visitors.receive` + `game.shared` | `load_visitors()` after connecting and every 45 s on the title screen → `RivalRoster` |
 | Disconnect | `POST /oauth/revoke` | — | `disconnect_player()` |
 
 Privacy rules the demo follows, and that you should too:

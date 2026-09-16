@@ -24,7 +24,6 @@ extends Control
 # Action buttons & loading
 @onready var connect_button: WeBumpConnectButton = %WeBumpConnectButton
 @onready var play_button: Button = %PlayButton
-@onready var visitors_button: Button = %VisitorsButton
 @onready var hint_label: Label = %HintLabel
 @onready var button_container: VBoxContainer = %ButtonContainer
 @onready var loading_container: VBoxContainer = %LoadingContainer
@@ -54,8 +53,6 @@ func _ready() -> void:
 	
 	play_button.pressed.connect(_on_play_pressed)
 	play_button.mouse_entered.connect(func(): if _audio and not play_button.disabled: _audio.play_hover())
-	visitors_button.pressed.connect(_on_visitors_pressed)
-	visitors_button.mouse_entered.connect(func(): if _audio and not visitors_button.disabled: _audio.play_hover())
 	
 	if connect_button:
 		connect_button.connection_started.connect(_on_connection_started)
@@ -63,10 +60,9 @@ func _ready() -> void:
 	var api = _get_api()
 	if api:
 		api.visitors_updated.connect(_on_visitors_updated)
-		api.visitors_failed.connect(_on_visitors_failed)
 		if api.is_authenticated and not api.is_mock_mode:
-			visitors_button.visible = true
 			_on_visitors_updated(api.visitor_cards)
+			api.load_visitors()
 
 func _get_api() -> Node:
 	return CarPresets.get_api()
@@ -380,13 +376,10 @@ func _on_connection_changed(connected: bool, profile: Dictionary) -> void:
 		var p_name = profile.get("display_name", "Player")
 		var is_mock = profile.get("is_mock", false)
 		
-		visitors_button.visible = not is_mock
-		visitors_button.disabled = false
-		visitors_button.text = "BRING IN YOUR BUMPS"
 		if is_mock:
-			hint_label.text = "[MOCK MODE] Connected as %s • Ready to Race!" % p_name
+			hint_label.text = "[MOCK MODE] Connected as %s - Ready to race!" % p_name
 		else:
-			hint_label.text = "Connected as %s • Bring in your bumps to race real rivals" % p_name
+			hint_label.text = "Connected as %s - loading your bumps..." % p_name
 		hint_label.add_theme_color_override("font_color", Color(0.165, 0.690, 0.388, 1.0))
 		
 		# Animate start button bounce
@@ -395,46 +388,38 @@ func _on_connection_changed(connected: bool, profile: Dictionary) -> void:
 		tween.tween_property(play_button, "scale", Vector2(1.04, 1.04), 0.12).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 		tween.tween_property(play_button, "scale", Vector2(1.0, 1.0), 0.12).set_trans(Tween.TRANS_SINE)
 	else:
-		visitors_button.visible = false
 		play_button.text = "START RACE"
 		_setup_mode_display()
 
 # ===================================================================
-# VISITOR HANDOFF: the player brings eligible bumps into this game
+# VISITORS: everyone the player bumped since connecting, refreshed automatically
 # ===================================================================
-func _on_visitors_pressed() -> void:
-	if _audio:
-		_audio.play_click()
-	var api = _get_api()
-	if api == null:
-		return
-	visitors_button.disabled = true
-	hint_label.text = "Approve the visitor handoff in the weBump app…"
-	hint_label.add_theme_color_override("font_color", Color(0.235, 0.561, 0.949, 1.0))
-	if not await api.request_visitors():
-		visitors_button.disabled = false
+const VISITOR_REFRESH_SECONDS := 45.0
+var _visitor_refresh := 0.0
 
 func _on_visitors_updated(cards: Array) -> void:
 	var api = _get_api()
 	if api == null or not api.is_authenticated or api.is_mock_mode:
 		return
-	visitors_button.disabled = false
 	if cards.is_empty():
-		hint_label.text = "No eligible bumps yet • practice rivals will race you"
+		hint_label.text = "No bumps yet - people you bump from now on show up here after weBump's reveal delay"
 		hint_label.add_theme_color_override("font_color", Color(0.55, 0.62, 0.75, 1.0))
 		return
 	var ghosts := 0
 	for card in cards:
 		if card is Dictionary and GhostData.is_valid(card.get("ghost_telemetry", {})):
 			ghosts += 1
-	visitors_button.text = "REFRESH BUMPS"
-	hint_label.text = "%d rival%s from your bumps ready • %d shared replay%s" % [cards.size(), "" if cards.size() == 1 else "s", ghosts, "" if ghosts == 1 else "s"]
+	hint_label.text = "%d rival%s from your bumps ready - %d shared replay%s" % [cards.size(), "" if cards.size() == 1 else "s", ghosts, "" if ghosts == 1 else "s"]
 	hint_label.add_theme_color_override("font_color", Color(0.165, 0.690, 0.388, 1.0))
 
-func _on_visitors_failed(message: String) -> void:
-	visitors_button.disabled = false
-	hint_label.text = message
-	hint_label.add_theme_color_override("font_color", Color(1.0, 0.553, 0.157, 1.0))
+func _refresh_visitors(delta: float) -> void:
+	var api = _get_api()
+	if api == null or not api.is_authenticated or api.is_mock_mode or _is_loading:
+		return
+	_visitor_refresh += delta
+	if _visitor_refresh >= VISITOR_REFRESH_SECONDS:
+		_visitor_refresh = 0.0
+		api.load_visitors()
 
 func _on_play_pressed() -> void:
 	if _is_loading or play_button.disabled:
@@ -468,6 +453,7 @@ func _on_play_pressed() -> void:
 func _process(delta: float) -> void:
 	if turntable != null and _turntable_auto_spin:
 		turntable.rotate_y(delta * 0.6)
+	_refresh_visitors(delta)
 	
 	if not _is_loading:
 		return

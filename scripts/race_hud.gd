@@ -302,7 +302,7 @@ func _show_results(total_time: float, lap_times: Array, best_lap_time: float) ->
 	for row in race_manager.leaderboard:
 		if row.id == "player":
 			player_position = row.position
-	result_total_time.text = "YOU PLACED %d / %d  ·  %s" % [player_position, race_manager.leaderboard.size(), format_time(total_time)]
+	result_total_time.text = "YOU PLACED %d / %d  -  %s" % [player_position, race_manager.leaderboard.size(), format_time(total_time)]
 	for child in leaderboard_rows.get_children():
 		child.queue_free()
 	for row in race_manager.leaderboard:
@@ -361,7 +361,7 @@ func _add_leaderboard_row(row: Dictionary) -> void:
 	driver.add_theme_font_size_override("font_size", 21)
 	identity.add_child(driver)
 	var car := Label.new()
-	car.text = "%s · %s" % [CarPresets.get_preset_by_id(row.car_body).name, row.kind]
+	car.text = "%s - %s" % [CarPresets.get_preset_by_id(row.car_body).name, row.kind]
 	car.add_theme_font_size_override("font_size", 13)
 	car.modulate = Color(0.68, 0.75, 0.83)
 	identity.add_child(car)

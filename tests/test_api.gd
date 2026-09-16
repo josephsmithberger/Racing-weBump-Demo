@@ -22,6 +22,8 @@ class FakeAPI extends "res://scripts/webump_api.gd":
 				return {"ok": true, "status": 200, "data": {"reference": "shares", "data": {"track_id": "demo_loop_v1", "samples": []}, "expires_at": "2026-09-21T00:00:00Z"}}
 			if path.ends_with("/shared"):
 				return {"ok": false, "status": 410, "data": {"error": "consent_required"}}
+			if path == "/v1/me/visitors":
+				return {"ok": true, "status": 200, "data": {"visitors": [{"reference": "shares", "display_name": "Rival", "theme_color": "#112233"}, {"reference": "private", "display_name": "Quiet", "theme_color": "#445566"}]}}
 			if path.begins_with("/v1/me/visitors/"):
 				return {"ok": true, "status": 200, "data": {"reference": path.get_slice("/", 4), "display_name": "Rival", "theme_color": "#112233", "stats": {}}}
 			return {"ok": true, "status": 200, "etag": '"%d"' % revision, "data": {"data": {"racing_save": {"best_3lap_ms": 99000}}}}
@@ -97,6 +99,12 @@ func _run() -> void:
 		"GET /v1/me/visitors/private", "GET /v1/me/visitors/private/shared"])
 	_check("step 11", api.visitor_cards.size() == 2 and api.visitor_cards[0].ghost_telemetry.track_id == "demo_loop_v1")
 	_check("step 12", not api.visitor_cards[1].has("ghost_telemetry"))
+	# Automatic listing: one call for the roster, one per rival for the shared replay.
+	api.set_visitor_cards([])
+	api.requests.clear()
+	await api.load_visitors()
+	_check("step 14", api.requests == ["GET /v1/me/visitors", "GET /v1/me/visitors/shares/shared", "GET /v1/me/visitors/private/shared"])
+	_check("step 15", api.visitor_cards.size() == 2 and api.visitor_cards[0].has("ghost_telemetry") and not api.visitor_cards[1].has("ghost_telemetry"))
 	api.set_visitor_cards([{"reference": "example"}])
 	api.disconnect_player()
 	_check("step 13", api.visitor_cards.is_empty() and not api.shared_data_sharing)

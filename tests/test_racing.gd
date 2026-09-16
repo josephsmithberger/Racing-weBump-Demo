@@ -58,7 +58,7 @@ func _run() -> void:
 	var replay := manager.rivals[0] as GhostDriver
 	check(replay != null, "A valid bump recording must replace the AI driver")
 	if replay:
-		check(replay.nameplate_label.text == "Maya · Ghost", "Nameplate must identify the bump and driver")
+		check(replay.nameplate_label.text == "Maya - Ghost", "Nameplate must identify the bump and driver")
 		check(replay.current_preset_id == "truck_red", "Replay must use the recorded model")
 		check(replay._paint_material.get_shader_parameter("paint_color") == Color("#FF3366"), "Replay must use the bump's paint")
 		replay._apply_frame(48000, 0)

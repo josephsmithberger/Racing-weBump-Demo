@@ -219,6 +219,7 @@ func fetch_player_profile() -> void:
 	await get_state("racing_save")
 	await fetch_permissions()
 	auth_succeeded.emit(current_player_profile, false)
+	await load_visitors()
 
 func _store_tokens(tokens: Dictionary) -> void:
 	access_token = str(tokens.get("access_token", ""))
@@ -547,8 +548,31 @@ func set_visitor_cards(cards: Array) -> void:
 	visitor_cards = cards.slice(0, 50).duplicate(true)
 	visitors_updated.emit(visitor_cards)
 
-## Ask the player to bring eligible visitors from their local weBump history into
-## this game. The approval happens in the weBump app; the callback redeems it.
+## Everyone the player bumped since connecting, once weBump's reveal delay has passed.
+## No approval step: visitors.receive was granted when the player connected. Each
+## rival's shared replay is fetched by reference; 410 means nothing is shared.
+func load_visitors() -> void:
+	if is_mock_mode or not is_authenticated:
+		return
+	var generation := _session_generation
+	var response := await _request_json("/v1/me/visitors")
+	if not response.ok or generation != _session_generation:
+		return
+	var cards: Array = []
+	for card in response.data.get("visitors", []):
+		if not card is Dictionary or not card.get("reference") is String:
+			continue
+		var fresh: Dictionary = card.duplicate(true)
+		if scopes.has("game.shared"):
+			var shared := await _request_json("/v1/me/visitors/" + card.reference.uri_encode() + "/shared")
+			if shared.ok and shared.data.get("data") is Dictionary:
+				fresh["ghost_telemetry"] = shared.data.data
+		cards.append(fresh)
+	if generation == _session_generation:
+		set_visitor_cards(cards)
+
+## Optional explicit transfer: lets the player hand over a chosen set of bumps through
+## the weBump app. The demo relies on load_visitors() instead.
 func request_visitors() -> bool:
 	if is_mock_mode or not is_authenticated:
 		return false

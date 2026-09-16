@@ -48,14 +48,20 @@ window.webumpOpenApproval = function (appUrl, pageUrl) {
 	const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
 		(navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 	if (isIOS && appUrl) {
-		// Safari blocks custom-scheme navigation from a cross-origin frame, so when this
-		// game is embedded the host page opens the app from the top level instead.
-		if (window.parent !== window) {
-			window.parent.postMessage({ type: 'webump-open-app', url: appUrl }, HOST_ORIGIN);
-		} else {
+		// Safari blocks custom-scheme navigation from a cross-origin frame. At top level,
+		// open the app directly; embedded by our own host page, ask it to; embedded
+		// anywhere else (itch.io, portals), fall back to the approval page, which
+		// shows an Open weBump button of its own.
+		const embedded = window.parent !== window;
+		const parentOrigin = window.location.ancestorOrigins ? window.location.ancestorOrigins[0] : '';
+		if (!embedded) {
 			window.location.href = appUrl;
+			return true;
 		}
-		return true;
+		if (parentOrigin === HOST_ORIGIN) {
+			window.parent.postMessage({ type: 'webump-open-app', url: appUrl }, HOST_ORIGIN);
+			return true;
+		}
 	}
 	approvalWindow = window.open(pageUrl, 'webump-approval', 'popup,width=520,height=780');
 	if (!approvalWindow) {

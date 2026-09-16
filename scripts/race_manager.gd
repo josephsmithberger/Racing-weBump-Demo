@@ -166,7 +166,7 @@ func _spawn_rivals() -> void:
 		_rival_entries[entry.id]["time"] = -1.0
 		driver.rival_finished.connect(_on_rival_finished)
 		get_parent().add_child(driver)
-		driver.setup_nameplate("%s · %s" % [entry.display_name, entry.kind])
+		driver.setup_nameplate("%s - %s" % [entry.display_name, entry.kind])
 		rivals.append(driver)
 
 func _on_rival_finished(rival_id: String, finish_time: float) -> void:

@@ -69,10 +69,12 @@ refreshes once, shortly before expiry, with the rotating refresh token. A
 failed refresh ends the session (refresh responses are single-use and must not
 be retried). Disconnecting revokes the refresh token best-effort.
 
-1. **Bring in your bumps** (title screen) calls `request_visitors()`, which
-   begins the handoff (`POST /v1/me/visitor-handoff`, `action: "begin"`) and
-   opens `authorization_url`. The redeem step returns cards; `refresh_visitors()`
-   then revalidates each one and fetches its shared replay.
+1. `load_visitors()` runs after connecting and every 45 seconds on the title
+   screen: `GET /v1/me/visitors` lists everyone the player bumped since
+   connecting whose reveal delay has passed, and each card's shared replay is
+   fetched by reference. No handoff or button is involved; the explicit handoff
+   (`request_visitors()`) stays available as an example of a player-chosen
+   transfer.
 2. Visitor cards are session-only and cleared on disconnect. Expired receipt
    references are not permanent player IDs. Missing or rejected cards are
    dropped on refresh: revoked or expired rivals are never raced from cache.
