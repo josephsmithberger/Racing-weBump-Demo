@@ -46,29 +46,23 @@ const HOST_ORIGIN = 'https://webump.app'; // The page allowed to embed this game
 let approvalWindow = null;
 // On an iPhone the app link opens weBump directly and the game keeps polling in this
 // tab; elsewhere the approval page opens in a popup and shows a QR code.
+// Called only when the player is already on the iPhone running weBump: hand the
+// approval straight to the app. Every other device shows a QR code inside the game
+// instead, so nothing here depends on a popup the browser may block.
 window.webumpOpenApproval = function (appUrl, pageUrl) {
-	const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
-		(navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-	if (isIOS && appUrl) {
-		// Safari blocks custom-scheme navigation from a cross-origin frame. At top level,
-		// open the app directly; embedded by our own host page, ask it to; embedded
-		// anywhere else (itch.io, portals), fall back to the approval page, which
-		// shows an Open weBump button of its own.
-		const embedded = window.parent !== window;
-		const parentOrigin = window.location.ancestorOrigins ? window.location.ancestorOrigins[0] : '';
-		if (!embedded) {
-			window.location.href = appUrl;
-			return true;
-		}
-		if (parentOrigin === HOST_ORIGIN) {
-			window.parent.postMessage({ type: 'webump-open-app', url: appUrl }, HOST_ORIGIN);
-			return true;
-		}
+	const embedded = window.parent !== window;
+	const parentOrigin = window.location.ancestorOrigins ? window.location.ancestorOrigins[0] : '';
+	if (!embedded) {
+		window.location.href = appUrl || pageUrl;
+		return true;
+	}
+	// Safari blocks custom-scheme navigation from a cross-origin frame, so our own
+	// host page opens it from the top level.
+	if (parentOrigin === HOST_ORIGIN) {
+		window.parent.postMessage({ type: 'webump-open-app', url: appUrl }, HOST_ORIGIN);
+		return true;
 	}
 	approvalWindow = window.open(pageUrl, 'webump-approval', 'popup,width=520,height=780');
-	if (!approvalWindow) {
-		approvalWindow = window.open(pageUrl, '_blank'); // Popup blocked: fall back to a tab.
-	}
 	return Boolean(approvalWindow);
 };
 window.addEventListener('message', (event) => {
@@ -81,7 +75,7 @@ window.addEventListener('message', (event) => {
 	}
 });
 
-const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":false,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":1994008,"index.wasm":39509339},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":false,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":1997304,"index.wasm":39509339},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
 const GODOT_THREADS_ENABLED = false;
 const engine = new Engine(GODOT_CONFIG);
 (function () {
