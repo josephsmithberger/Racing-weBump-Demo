@@ -51,67 +51,78 @@ func _run() -> void:
 		inst.queue_free()
 	await process_frame
 	
-	# 3. Test mobile mode with force_mobile = true
+	# 3. Test mobile mode with force_mobile = true.
+	# The headless root window is 64x64 and never routes GUI events, so the touch
+	# drags below go through a phone-sized SubViewport that handles input locally.
+	var touch_viewport := SubViewport.new()
+	touch_viewport.size = Vector2i(844, 390) # iPhone, landscape
+	touch_viewport.handle_input_locally = true
+	root.add_child(touch_viewport)
+
 	var mobile_inst: CanvasLayer = scn.instantiate() as CanvasLayer
 	mobile_inst.set("force_mobile", true)
-	root.add_child(mobile_inst)
+	touch_viewport.add_child(mobile_inst)
 	await process_frame
 	await process_frame
 	check(mobile_inst.is_inside_tree() and not mobile_inst.is_queued_for_deletion(), "VirtualJoysticks must stay in tree when mobile")
-	
+
 	var m_left: VirtualJoystick = mobile_inst.get("left_joystick") as VirtualJoystick
 	var m_right: VirtualJoystick = mobile_inst.get("right_joystick") as VirtualJoystick
 	check(m_left != null and m_right != null, "Joysticks must be accessible on mobile instance")
-	
+	check(touch_viewport.get_visible_rect().encloses(m_left.get_global_rect()), "LeftJoystick must sit fully on a phone-sized screen")
+	check(touch_viewport.get_visible_rect().encloses(m_right.get_global_rect()), "RightJoystick must sit fully on a phone-sized screen")
+
 	# Test touch drag on LeftJoystick (Steering)
 	var left_center: Vector2 = m_left.global_position + m_left.size * 0.5
 	var touch_l := InputEventScreenTouch.new()
 	touch_l.index = 0
 	touch_l.position = left_center
 	touch_l.pressed = true
-	root.push_input(touch_l)
-	
+	touch_viewport.push_input(touch_l)
+
 	var drag_l := InputEventScreenDrag.new()
 	drag_l.index = 0
 	drag_l.position = left_center + Vector2(60, 0) # Drag right
-	root.push_input(drag_l)
+	drag_l.relative = Vector2(60, 0)
+	touch_viewport.push_input(drag_l)
 	await process_frame
-	
+
 	check(Input.get_axis("left", "right") > 0.3, "Steering axis must respond to LeftJoystick right drag")
-	
+
 	touch_l.pressed = false
-	root.push_input(touch_l)
+	touch_viewport.push_input(touch_l)
 	await process_frame
 	check(abs(Input.get_axis("left", "right")) < 0.01, "Steering axis must return to neutral on release")
-	
+
 	# Test touch drag on RightJoystick (Throttle)
 	var right_center: Vector2 = m_right.global_position + m_right.size * 0.5
 	var touch_r := InputEventScreenTouch.new()
 	touch_r.index = 1
 	touch_r.position = right_center
 	touch_r.pressed = true
-	root.push_input(touch_r)
-	
+	touch_viewport.push_input(touch_r)
+
 	var drag_r := InputEventScreenDrag.new()
 	drag_r.index = 1
 	drag_r.position = right_center + Vector2(0, -60) # Drag up (forward)
-	root.push_input(drag_r)
+	drag_r.relative = Vector2(0, -60)
+	touch_viewport.push_input(drag_r)
 	await process_frame
-	
+
 	check(Input.get_axis("back", "forward") > 0.3, "Throttle axis must respond to RightJoystick up drag")
-	
+
 	touch_r.pressed = false
-	root.push_input(touch_r)
+	touch_viewport.push_input(touch_r)
 	await process_frame
 	check(abs(Input.get_axis("back", "forward")) < 0.01, "Throttle axis must return to neutral on release")
-	
+
 	# Test race finished hiding
 	mobile_inst.call("_on_race_finished", 60.0)
 	check(mobile_inst.visible == false, "VirtualJoysticks must hide when race finishes")
 	
-	mobile_inst.queue_free()
+	touch_viewport.queue_free()
 	await process_frame
-	
+
 	# 4. Verify title_screen.tscn does NOT contain any VirtualJoystick
 	var title_scn: PackedScene = load("res://scenes/title_screen.tscn")
 	var title_inst: Node = title_scn.instantiate()
