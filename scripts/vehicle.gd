@@ -162,7 +162,7 @@ func apply_body_color(color: Color) -> void:
 	
 	_paint_material.set_shader_parameter("paint_color", color)
 	var preset = CarPresets.get_preset_by_id(current_preset_id)
-	_paint_material.set_shader_parameter("paint_mask", preset.get("paint_mask", 0))
+	_paint_material.set_shader_parameter("paint_region", CarPresets.paint_region(preset))
 	_paint_material.set_shader_parameter("use_paint_override", true)
 
 	# Paint panels may live on separate body, fork, or wheel meshes. The shader's

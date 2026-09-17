@@ -7,7 +7,7 @@ const PRESETS: Array[Dictionary] = [
 		"model_path": "res://models/vehicle-truck-yellow.glb",
 		"type": "truck",
 		"default_color": Color(1.0, 0.70, 0.0), # Amber
-		"paint_mask": 0 # Orange/yellow paint palette
+		"paint_cell": Vector2i(7, 2) # Orange paint swatch
 	},
 	{
 		"id": "truck_red",
@@ -15,7 +15,7 @@ const PRESETS: Array[Dictionary] = [
 		"model_path": "res://models/vehicle-truck-red.glb",
 		"type": "truck",
 		"default_color": Color(1.0, 0.09, 0.27), # Racing Red
-		"paint_mask": 1 # Red/pink paint palette
+		"paint_cell": Vector2i(11, 2) # Pink paint swatch
 	},
 	{
 		"id": "truck_green",
@@ -23,7 +23,7 @@ const PRESETS: Array[Dictionary] = [
 		"model_path": "res://models/vehicle-truck-green.glb",
 		"type": "truck",
 		"default_color": Color(0.0, 0.90, 0.46), # Electric Green
-		"paint_mask": 2 # Green paint palette
+		"paint_cell": Vector2i(1, 3) # Green paint swatch
 	},
 	{
 		"id": "truck_purple",
@@ -31,7 +31,7 @@ const PRESETS: Array[Dictionary] = [
 		"model_path": "res://models/vehicle-truck-purple.glb",
 		"type": "truck",
 		"default_color": Color(0.83, 0.0, 0.98), # Neon Purple
-		"paint_mask": 3 # Blue paint palette
+		"paint_cell": Vector2i(1, 1) # Blue paint swatch
 	},
 	{
 		"id": "motorcycle",
@@ -39,7 +39,7 @@ const PRESETS: Array[Dictionary] = [
 		"model_path": "res://models/vehicle-motorcycle.glb",
 		"type": "motorcycle",
 		"default_color": Color(0.0, 0.90, 1.0), # Cyan Blue
-		"paint_mask": 2 # Green paint palette
+		"paint_cell": Vector2i(1, 3) # Green paint swatch
 	}
 ]
 
@@ -60,6 +60,17 @@ static func has_preset(id: String) -> bool:
 		if p["id"] == id:
 			return true
 	return false
+
+# Every vehicle shares one palette texture, laid out as a grid of swatches. A model's
+# painted body panels all sample a single swatch, so recoloring keys off that swatch's
+# UV rectangle - exact whatever the palette hue, and identical on every renderer.
+const PALETTE_GRID := Vector2i(16, 4)
+
+static func paint_region(preset: Dictionary) -> Vector4:
+	var cell: Vector2i = preset.get("paint_cell", Vector2i(7, 2))
+	var w := 1.0 / float(PALETTE_GRID.x)
+	var h := 1.0 / float(PALETTE_GRID.y)
+	return Vector4(cell.x * w, cell.y * h, (cell.x + 1) * w, (cell.y + 1) * h)
 
 const SELECTION_FILE_PATH: String = "user://selected_car.txt"
 static var _active_car_id: String = ""

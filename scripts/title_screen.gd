@@ -277,7 +277,7 @@ func _load_preview_model(preset: Dictionary, animate: bool) -> void:
 		_preview_paint_mat.shader = shader
 		_preview_paint_mat.set_shader_parameter("albedo_texture", preload("res://models/Textures/colormap.png"))
 		_preview_paint_mat.set_shader_parameter("paint_color", col)
-		_preview_paint_mat.set_shader_parameter("paint_mask", preset.get("paint_mask", 0))
+		_preview_paint_mat.set_shader_parameter("paint_region", CarPresets.paint_region(preset))
 		_preview_paint_mat.set_shader_parameter("use_paint_override", true)
 		for mesh in paint_meshes:
 			(mesh as MeshInstance3D).material_override = _preview_paint_mat
