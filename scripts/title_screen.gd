@@ -443,21 +443,15 @@ func _on_visitors_updated(cards: Array) -> void:
 	var api = _get_api()
 	if api == null or not api.is_authenticated or api.is_mock_mode:
 		return
-	# weBump holds every bump for at least two hours before a game may see it, so an
-	# empty list usually means "not yet", not "nobody". Say that instead of "none".
 	if cards.is_empty():
-		hint_label.text = "Waiting on your bumps - anyone you bump joins your race about 2 hours later"
+		hint_label.text = "No bumps yet - people you bump from now on show up here after weBump's reveal delay"
 		hint_label.add_theme_color_override("font_color", Color(0.55, 0.62, 0.75, 1.0))
 		return
 	var ghosts := 0
 	for card in cards:
 		if card is Dictionary and GhostData.is_valid(card.get("ghost_telemetry", {})):
 			ghosts += 1
-	var rivals := "%d rival%s from your bumps" % [cards.size(), "" if cards.size() == 1 else "s"]
-	if ghosts > 0:
-		hint_label.text = "%s - %d race%s as a ghost" % [rivals, ghosts, "s" if ghosts == 1 else ""]
-	else:
-		hint_label.text = "%s - none shared a replay yet, so they drive as AI" % rivals
+	hint_label.text = "%d rival%s from your bumps ready - %d shared replay%s" % [cards.size(), "" if cards.size() == 1 else "s", ghosts, "" if ghosts == 1 else "s"]
 	hint_label.add_theme_color_override("font_color", Color(0.165, 0.690, 0.388, 1.0))
 
 func _refresh_visitors(delta: float) -> void:
