@@ -24,6 +24,7 @@ extends Control
 @onready var approval_title: Label = %ApprovalTitle
 @onready var approval_qr: TextureRect = %ApprovalQR
 @onready var approval_status: Label = %ApprovalStatus
+@onready var approval_open: Button = %ApprovalOpen
 @onready var approval_cancel: Button = %ApprovalCancel
 
 # Action buttons & loading
@@ -64,6 +65,9 @@ func _ready() -> void:
 		connect_button.connection_changed.connect(_on_connection_changed)
 	approval_panel.visible = false
 	approval_cancel.pressed.connect(_on_approval_cancelled)
+	approval_open.pressed.connect(func():
+		var connection = _get_api()
+		if connection: connection.open_device_approval())
 	var api = _get_api()
 	if api:
 		api.approval_started.connect(_on_approval_started)
@@ -371,7 +375,7 @@ func _on_connection_started() -> void:
 		hint_label.text = "Simulating weBump handshake in Editor (Mock Mode)…"
 		hint_label.add_theme_color_override("font_color", Color(1.0, 0.839, 0.0, 1.0))
 	else:
-		hint_label.text = "Connecting to weBump API (OAuth PKCE)…"
+		hint_label.text = "Starting your weBump connection…"
 		hint_label.add_theme_color_override("font_color", Color(0.235, 0.561, 0.949, 1.0))
 
 func _on_connection_changed(connected: bool, profile: Dictionary) -> void:
@@ -409,16 +413,19 @@ func _on_connection_changed(connected: bool, profile: Dictionary) -> void:
 # APPROVAL: the player approves on their phone, by scan or by tap
 # ===================================================================
 func _on_approval_started(qr: Texture2D, approval_url: String) -> void:
+	var api = _get_api()
+	approval_open.text = "OPEN WEBUMP" if not api.approval_app_url.is_empty() else "OPEN APPROVAL PAGE"
 	if qr == null:
-		# weBump opened on this device; there is nothing to scan.
+		# The player sees the matching code before tapping to switch apps.
 		approval_title.text = "Finish in weBump"
 		approval_qr.visible = false
-		approval_status.text = "Approve in the weBump app, then come back here. This screen continues on its own."
+		approval_status.text = "Read the code below, then tap Open weBump. Confirm the same code in the app and come back here."
 	else:
 		approval_title.text = "Scan with your iPhone"
 		approval_qr.texture = qr
 		approval_qr.visible = true
 		approval_status.text = "Open the Camera app and point it at this code, then approve in weBump. This screen continues on its own.\n%s" % approval_url
+	approval_status.text = "Match code %s in weBump. Only approve the device you just opened.\n\n" % api.approval_user_code + approval_status.text
 	approval_panel.visible = true
 
 func _on_approval_finished() -> void:

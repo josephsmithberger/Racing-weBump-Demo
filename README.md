@@ -110,7 +110,7 @@ client: it fetches the approval request as JSON, opens weBump directly when the
 player is already on the iPhone running it, and otherwise draws the API's QR code
 on the title screen for them to scan with their phone. Either way it polls the
 API for the result and keeps tokens in memory. Desktop and native builds use the
-same scannable path, so nothing depends on a browser or a popup; the editor stays
+same explicit device grant, so nothing depends on a browser or a popup; the editor stays
 in mock mode.
 
 ## Verify
@@ -130,3 +130,15 @@ Built on [Kenney's Starter Kit Racing](https://github.com/KenneyNL/Starter-Kit-R
 (CC0 assets and starter code) with the [Godot Engine](https://godotengine.org).
 This demo keeps the same license; see [LICENSE](LICENSE). weBump and its API are
 not affiliated with Kenney.
+
+### Connection contract (September 19, 2026)
+
+The production project must explicitly enable the reviewed `device_code` method.
+The game calls `/oauth/device_authorization`, displays `user_code` next to the QR
+(or before opening weBump on this phone), and polls `/oauth/token` with the private
+`device_code` at the server interval. `slow_down` adds five seconds. No device
+credential is placed in config, verification URLs or logs. Tokens stay in memory.
+The updated weBump app requires matching-code confirmation. Device authorization
+supports native and browser clients, including local copies, and does not attest
+that a downloadable game is genuine. Redirect-only projects cannot use this flow.
+The old `/oauth/pending` callback relay was removed; it now returns status only.

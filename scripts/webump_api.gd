@@ -1,7 +1,7 @@
 extends Node
 ## weBump Connected Games client for this demo (autoload `WeBumpAPI`).
 ##
-## One node owns the delegated session (OAuth 2.0 with PKCE, public client), the
+## One node owns the delegated session (OAuth device grant, public client), the
 ## player's private save, the reviewed public capsule/showcase values, the selected
 ## shared replay, and the authorized visitor cards. Tokens live only in memory.
 ## docs/API_INTEGRATION.md explains the contract this file implements.
@@ -104,7 +104,7 @@ func get_mode_description() -> String:
 	return "Live API (%s)" % api_origin
 
 # -------------------------------------------------------------------
-# Connecting: mock in the editor, OAuth 2.0 PKCE everywhere else
+# Connecting: mock in the editor, explicit OAuth device approval elsewhere
 # -------------------------------------------------------------------
 func connect_player() -> void:
 	if is_connecting or is_authenticated:
@@ -143,58 +143,70 @@ func _generate_pkce_pair() -> Dictionary:
 static func _base64url(bytes: PackedByteArray) -> String:
 	return Marshalls.raw_to_base64(bytes).replace("+", "-").replace("/", "_").replace("=", "")
 
-func _start_live_oauth_flow() -> void:
-	var pkce := _generate_pkce_pair()
-	_current_verifier = pkce.verifier
-	_current_state = pkce.state
-	# display=popup with Accept: application/json returns the request as JSON instead of
-	# redirecting, so this game can open the app or the QR page itself and poll for the result.
-	var query := "response_type=code&client_id=%s&redirect_uri=%s&scope=%s&code_challenge=%s&code_challenge_method=S256&state=%s&display=popup" % [
-		client_id.uri_encode(), redirect_uri.uri_encode(), " ".join(scopes).uri_encode(), pkce.challenge, pkce.state]
-	var response := await _http("/oauth/authorize?" + query, HTTPClient.METHOD_GET)
-	if not response.ok:
-		_fail_connection("Could not start the connection (HTTP %d)" % response.status)
-		return
-	await _await_approval(response.data)
+var approval_user_code := ""
+var approval_app_url := ""
+var approval_page_url := ""
 
-## Announce this game as the waiting client, open the approval, and poll until the phone
-## decides. The callback URL arrives here exactly once; the player never leaves this tab.
-func _await_approval(begin: Dictionary) -> void:
-	var request := str(begin.get("request", ""))
-	var generation := _session_generation
-	if request.is_empty():
-		_route_callback("", "", "invalid_request")
+func _start_live_oauth_flow() -> void:
+	# Explicit reviewed device grant works in native apps and browser exports alike.
+	var response := await _http("/oauth/device_authorization", HTTPClient.METHOD_POST, {
+		"client_id": client_id, "scope": " ".join(scopes)})
+	if not response.ok:
+		_fail_connection("Could not start device connection (%s). Check that this project is approved for device connections." % str(response.data.get("error", response.status)))
 		return
-	await _http("/oauth/pending", HTTPClient.METHOD_POST, {"request": request})
-	var approval_url := str(begin.get("authorization_url", ""))
+	await _await_device_approval(response.data)
+
+func _await_device_approval(begin: Dictionary) -> void:
+	var generation := _session_generation
+	var device_code := str(begin.get("device_code", ""))
+	approval_user_code = str(begin.get("user_code", ""))
+	var approval_url := str(begin.get("verification_uri_complete", ""))
+	approval_page_url = approval_url
+	approval_app_url = str(begin.get("app_url", "")) if _opens_app_directly() else ""
+	if device_code.is_empty() or approval_user_code.is_empty():
+		_fail_connection("Invalid device connection response")
+		return
+	# Display the matching code before leaving the game, including on this phone.
 	if _opens_app_directly():
-		_open_approval(str(begin.get("app_url", "")), approval_url)
 		approval_started.emit(null, approval_url)
 	else:
-		# Any other device: the player approves on their phone by scanning. Nothing is
-		# opened here, so nothing depends on a popup the browser may block.
-		var qr_url := str(begin.get("qr_url", ""))
-		if qr_url.is_empty():
-			qr_url = api_origin + "/oauth/qr?request=" + request.uri_encode()
-		approval_started.emit(await _load_qr(qr_url), approval_url)
-	var deadline := Time.get_unix_time_from_system() + 300.0
+		approval_started.emit(await _load_qr(str(begin.get("qr_url", ""))), approval_url)
+	var interval := maxi(5, int(begin.get("interval", 5)))
+	var deadline := Time.get_unix_time_from_system() + int(begin.get("expires_in", 300))
 	while generation == _session_generation and Time.get_unix_time_from_system() < deadline:
-		await get_tree().create_timer(2.0).timeout
+		await get_tree().create_timer(float(interval)).timeout
 		if generation != _session_generation:
 			return
-		var status := await _http("/oauth/pending?request=" + request.uri_encode(), HTTPClient.METHOD_GET)
-		if status.status == 404:
-			break
-		if status.ok and status.data.get("status") == "complete":
-			var redirect := str(status.data.get("redirect_uri", ""))
-			if redirect.is_empty():
-				break
-			approval_finished.emit()
-			_deliver_callback_url(redirect)
+		var result := await _http("/oauth/token", HTTPClient.METHOD_POST, {
+			"grant_type": "urn:ietf:params:oauth:grant-type:device_code", "client_id": client_id, "device_code": device_code})
+		if generation != _session_generation:
 			return
+		if result.ok:
+			approval_finished.emit()
+			_store_tokens(result.data)
+			await fetch_player_profile()
+			return
+		var problem := str(result.data.get("error", "connection_failed"))
+		if problem == "authorization_pending":
+			continue
+		if problem == "slow_down":
+			interval += 5
+			continue
+		# Never retry an uncertain successful token response; start a fresh connection.
+		approval_finished.emit()
+		_fail_connection("Connection ended: " + problem)
+		return
 	if generation == _session_generation:
 		approval_finished.emit()
-		_route_callback("", "", "expired")
+		_fail_connection("Connection expired. Please try again.")
+
+func open_device_approval() -> void:
+	if is_connecting and not approval_page_url.is_empty():
+		_open_approval(approval_app_url, approval_page_url)
+
+# Explicit legacy visitor handoff remains callback-based; polling cannot deliver its code.
+func _await_approval(begin: Dictionary) -> void:
+	_open_approval(str(begin.get("app_url", "")), str(begin.get("authorization_url", "")))
 
 ## Whether approval hands straight to the weBump app on this device, or the player
 ## scans a code with a separate phone. The API returns both links every time; this

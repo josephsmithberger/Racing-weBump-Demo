@@ -65,7 +65,7 @@ window.webumpOpenApproval = function (appUrl, pageUrl) {
 };
 window.addEventListener('message', (event) => {
 	if (event.origin !== APPROVAL_ORIGIN || !event.data || event.data.type !== 'webump-callback') return;
-	if (approvalWindow && event.source !== approvalWindow) return;
+	if (!approvalWindow || event.source !== approvalWindow) return;
 	if (typeof window.webumpDeliverCallback === 'function') {
 		window.webumpDeliverCallback(JSON.stringify({
 			code: event.data.code || '', state: event.data.state || '', error: event.data.error || '',
