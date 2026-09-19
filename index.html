@@ -35,6 +35,66 @@ body { color: white; background-color: #0b0e16; overflow: hidden; touch-action: 
 		<script src="index.js"></script>
 		<script>
 // ---------------------------------------------------------------------------
+// Frame cap.
+//
+// A 120 Hz iPhone hands the engine twice the frames it needs, which is twice the
+// battery and heat for a race that reads the same at 60. Godot's own max_fps
+// cannot do this here: it caps by sleeping, and in a single-threaded web build
+// that sleep compiles to a busy-wait, so the tab holds a core at 100% for the
+// half of each frame it is trying to idle. Skipping animation frames instead
+// leaves the main thread genuinely free, and no-ops on a 60 Hz display.
+// ---------------------------------------------------------------------------
+(function () {
+	const TARGET_MS = 1000 / 60;
+	const raf = window.requestAnimationFrame.bind(window);
+	const caf = window.cancelAnimationFrame.bind(window);
+	// The display's own interval, measured as the shortest gap seen so far. A vsync
+	// is let through once skipping it would overshoot 60 Hz by more than half a
+	// refresh, which keeps 60 Hz displays untouched and 120 Hz ones at every second.
+	let refreshMs = TARGET_MS;
+	let previousTs = 0;
+	let renderedTs = -Infinity;
+	// Every callback scheduled for the same vsync gets the same timestamp, so the
+	// decision is made once per vsync and reused. Deciding per callback instead
+	// would let two callers take turns claiming the frame and halve each one's rate.
+	let decidedTs = NaN;
+	let decision = true;
+	function letThrough(timestamp) {
+		if (timestamp === decidedTs) return decision;
+		decidedTs = timestamp;
+		if (previousTs) {
+			const gap = timestamp - previousTs;
+			if (gap > 1 && gap < refreshMs) refreshMs = gap;
+		}
+		previousTs = timestamp;
+		decision = timestamp - renderedTs >= TARGET_MS - refreshMs / 2;
+		if (decision) renderedTs = timestamp;
+		return decision;
+	}
+	let nextHandle = 1;
+	const pending = new Map(); // Our handle -> the browser's current handle.
+	window.requestAnimationFrame = function (callback) {
+		const handle = nextHandle++;
+		const step = function (timestamp) {
+			if (!letThrough(timestamp)) {
+				pending.set(handle, raf(step));
+				return;
+			}
+			pending.delete(handle);
+			callback(timestamp);
+		};
+		pending.set(handle, raf(step));
+		return handle;
+	};
+	window.cancelAnimationFrame = function (handle) {
+		const browserHandle = pending.get(handle);
+		if (browserHandle === undefined) return;
+		pending.delete(handle);
+		caf(browserHandle);
+	};
+}());
+
+// ---------------------------------------------------------------------------
 // weBump approval relay.
 //
 // The game (scripts/webump_api.gd) calls window.webumpOpenApproval(appUrl, pageUrl)
@@ -67,7 +127,7 @@ window.webumpOpenApproval = function (appUrl, pageUrl) {
 };
 window.addEventListener('message', (event) => {
 	if (event.origin !== APPROVAL_ORIGIN || !event.data || event.data.type !== 'webump-callback') return;
-	if (approvalWindow && event.source !== approvalWindow) return;
+	if (!approvalWindow || event.source !== approvalWindow) return;
 	if (typeof window.webumpDeliverCallback === 'function') {
 		window.webumpDeliverCallback(JSON.stringify({
 			code: event.data.code || '', state: event.data.state || '', error: event.data.error || '',
@@ -75,7 +135,7 @@ window.addEventListener('message', (event) => {
 	}
 });
 
-const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":false,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":1998792,"index.wasm":39509339},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
+const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"emscriptenPoolSize":8,"ensureCrossOriginIsolationHeaders":false,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":2002140,"index.wasm":39509339},"focusCanvas":true,"gdextensionLibs":[],"godotPoolSize":4};
 const GODOT_THREADS_ENABLED = false;
 const engine = new Engine(GODOT_CONFIG);
 (function () {
