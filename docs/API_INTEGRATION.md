@@ -1,5 +1,7 @@
 # Integrating weBump visitors and replay data
 
+For a step-by-step walkthrough, follow the [seven-part Racing tutorial](https://developer.webump.app/racing.html). This file documents the demo-specific contract.
+
 ## What is saved versus shared
 
 `ghost_telemetry` is a game-defined private state key. `game.state` accepts bounded
@@ -77,7 +79,8 @@ when their own verified app link is configured.
 
 Other developers can call `connectBrowser({clientID,callbackURL,scopes,onPrompt})`
 on their callback origin, or use `attachGameFrame` for an embedded export. The
-callback page calls `relayRedirectCallback`. See the
+callback page calls `relayRedirectCallback` and shows a generic “Go back to your
+game” prompt without loading a game. Use the [ready-to-host example](https://developer.webump.app/sdk/godot-host.zip). See the
 [browser quickstart](https://developer.webump.app/tutorial#browser-quickstart).
 Public configuration is safe to publish; approval grants access to a player's
 scoped data, not proof of an unmodified official game binary.
@@ -150,8 +153,9 @@ State, capsule, showcase and the shared document share one revision. The client 
 reads `/v1/me/state` for its strong ETag, and sends it in `If-Match`. Conflicts and
 network failures surface through callbacks and `request_failed`; no blind retry
 can overwrite a concurrent edit. All game records are persisted locally first.
-Cloud failure does not destroy the local record. There is no background retry or
-token-refresh scheduler in this demo; reconnect after token expiry.
+Cloud failure does not destroy the local record. There is no background retry
+scheduler. Requests refresh access tokens on demand; a failed refresh ends the
+session and requires reconnecting.
 
 Public highscore fields must match the project's approved definition:
 `highscore_seconds`, `best_time_sec`, and `best_lap_sec` are the existing example

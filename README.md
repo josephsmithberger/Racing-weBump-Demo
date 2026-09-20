@@ -11,6 +11,7 @@ they chose to share races you as a ghost. Think StreetPass, in your own game.
 
 | Docs | What it covers |
 | --- | --- |
+| [Racing tutorial series](https://developer.webump.app/racing.html) | Seven lessons from local mock race to your own live project, with a downloadable host |
 | [Get started](https://developer.webump.app/tutorial) | Apply for a project, OAuth with PKCE, private saves, visitor handoffs |
 | [Share selected game data](https://developer.webump.app/tutorial#shared-data) | The `game.shared` flow this demo uses for replays |
 | [API reference](https://developer.webump.app/reference) | Every endpoint, error code and limit (OpenAPI) |
@@ -20,13 +21,14 @@ they chose to share races you as a ghost. Think StreetPass, in your own game.
 
 ## What the demo does with the API
 
-Everything API-related lives in [`scripts/webump_api.gd`](scripts/webump_api.gd),
-a single autoload. The rest of the game only calls its public functions and
-listens to its signals.
+Game-facing API calls live in [`scripts/webump_api.gd`](scripts/webump_api.gd),
+a single autoload. On the hosted web demo, the shared browser SDK owns the
+connection and sends the result through the checked export-shell bridge.
+Game screens call the autoload’s functions and listen to its signals.
 
 | Step | Endpoint | Scope | In this repo |
 | --- | --- | --- | --- |
-| Connect (OAuth 2.0 + PKCE, public client) | `GET /oauth/authorize`, `POST /oauth/token` | `profile.basic` | `connect_player()`, `exchange_authorization_code()`, refresh in `_ensure_fresh_token()` |
+| Connect (reviewed public-client methods) | `GET /oauth/authorize` or `POST /oauth/device_authorization`, then `POST /oauth/token` | `profile.basic` | `connect_player()` → hosted browser helper or direct device flow; refresh in `_ensure_fresh_token()` |
 | Read the player's name and color | `GET /v1/me` | `profile.basic` | `fetch_player_profile()` → nameplate and paint |
 | Private save (never visible to others) | `GET /v1/me/state`, `PUT /v1/me/state/:key` | `game.state` | `racing_save`, `ghost_telemetry` |
 | Public high score on bump cards / profile | `PUT /v1/me/capsule`, `PUT /v1/me/showcase` | `game.capsule`, `game.showcase` | `save_public_highscore()` |
@@ -41,8 +43,9 @@ Privacy rules the demo follows, and that you should too:
 - A rival's replay is never read from their private state. Each player publishes
   one replay through `game.shared` after pressing a button; the server also
   requires their own "Share selected game data" toggle in the weBump app.
-- `410` on a visitor read means that person opted out, expired, withdrew, or
-  blocked. The demo races them as AI instead of complaining.
+- `410` on a shared-document read means that data is unavailable. An authorized
+  basic card can use AI instead; if the card itself is unavailable, drop its
+  personal data and use a practice driver.
 - Every write sends `If-Match` with the latest revision. A `409` is surfaced,
   never retried blindly; the local save is always kept.
 
@@ -79,7 +82,7 @@ observed pace. Personal bests and complete replays (≤ 3 minutes, ≤ 256 frame
 | --- | --- |
 | `scripts/webump_api.gd` | Session, transport, saves, shared replay, visitors |
 | `scripts/webump_connect_button.gd` | Official connect control (see the brand page) |
-| `scripts/title_screen.gd` | Car chooser, connect, bring in bumps, start |
+| `scripts/title_screen.gd` | Car chooser, connect, automatic visitor refresh, start |
 | `scripts/rival_roster.gd` | Turn visitor cards into a bounded race roster |
 | `scripts/ghost_data.gd` | Replay validation, compaction, shared document |
 | `scripts/ghost_recorder.gd` | Record runs, keep the best, share on request |
@@ -88,30 +91,41 @@ observed pace. Personal bests and complete replays (≤ 3 minutes, ≤ 256 frame
 | `scripts/race_manager.gd`, `race_standings.gd` | Countdown, roster, checkpoints, results |
 | `scripts/race_hud.gd` | HUD, results card, Share Replay |
 | `scripts/vehicle.gd`, `car_presets.gd` | Vehicle physics, paint and model presets |
-| `web/shell.html` | Web export shell with the approval popup relay |
+| `web/shell.html` | Web export shell with the origin-checked host connection bridge |
 
 Rival and ghost vehicles inherit `scenes/vehicle.tscn` so geometry, sounds,
 nameplates and effects are set up once in the scene files.
 
 ## Web export and hosting
 
-The `Web` preset is single-threaded (works in iOS Safari, no cross-origin
-isolation headers) and uses `web/shell.html`, which adds the popup relay for the
-OAuth callback. Export from the editor or:
+The `Web` preset is single-threaded and uses `web/shell.html`. Export from the
+editor or, after installing matching Godot export templates:
 
 ```sh
-/Applications/Godot.app/Contents/MacOS/Godot --headless --path . --export-release Web build/web/index.html
+mkdir -p build/web
+godot --headless --path . --export-release Web build/web/index.html
 ```
 
-`build/` is gitignored. The export is published on this repository's
-`gh-pages` branch and embedded by [webump.app/demo](https://webump.app/demo),
-which is also the registered OAuth callback. The game is a public OAuth
-client: it fetches the approval request as JSON, opens weBump directly when the
-player is already on the iPhone running it, and otherwise draws the API's QR code
-on the title screen for them to scan with their phone. Either way it polls the
-API for the result and keeps tokens in memory. Desktop and native builds use the
-same explicit device grant, so nothing depends on a browser or a popup; the editor stays
-in mock mode.
+`build/` is gitignored. The complete export is published on `gh-pages` and
+embedded by [webump.app/demo](https://webump.app/demo). On that host, the shared
+browser helper selects callback + PKCE on iPhone/iPad and device approval on a
+computer. Same-phone approval opens the registered callback, which relays the
+result to the original tab and says “Go back to your game”; it never loads a
+second game. Keep the original tab open in the same browser. No matching code
+is required for that callback flow.
+
+Device approval displays a QR/short code, requires comparison and approval in
+weBump on the player's iPhone, and polls with a private device credential.
+Direct local/GitHub Pages exports and native demo builds without the host bridge
+also use this reviewed method. `/oauth/pending` is status-only; it never returns
+a callback, authorization code or token. Tokens stay in memory.
+
+For your own game, follow [lesson 3](https://developer.webump.app/racing-connect.html)
+and use the [static host example](https://developer.webump.app/sdk/godot-host.zip).
+Configure your own approved client/callback/scopes in both game and host, change
+`HOST_ORIGIN` in the export shell, and rebuild. No developer backend or shared
+project API key is required. Public-client OAuth permits an explicitly approved
+local copy; it does not attest an official game binary.
 
 ## Verify
 
@@ -130,15 +144,3 @@ Built on [Kenney's Starter Kit Racing](https://github.com/KenneyNL/Starter-Kit-R
 (CC0 assets and starter code) with the [Godot Engine](https://godotengine.org).
 This demo keeps the same license; see [LICENSE](LICENSE). weBump and its API are
 not affiliated with Kenney.
-
-### Connection contract (September 19, 2026)
-
-The production project must explicitly enable the reviewed `device_code` method.
-The game calls `/oauth/device_authorization`, displays `user_code` next to the QR
-(or before opening weBump on this phone), and polls `/oauth/token` with the private
-`device_code` at the server interval. `slow_down` adds five seconds. No device
-credential is placed in config, verification URLs or logs. Tokens stay in memory.
-The updated weBump app requires matching-code confirmation. Device authorization
-supports native and browser clients, including local copies, and does not attest
-that a downloadable game is genuine. Redirect-only projects cannot use this flow.
-The old `/oauth/pending` callback relay was removed; it now returns status only.
