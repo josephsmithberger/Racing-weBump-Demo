@@ -56,15 +56,16 @@ fov = 40.0
 far = 60.0
 
 [node name="Sun" type="DirectionalLight3D" parent="." unique_id=385873465]
+light_energy = 0.8
 transform = Transform3D(-0.422618, -0.694272, 0.582564, 0, 0.642788, 0.766044, -0.906308, 0.323744, -0.271654, 0, 0, 0)
 shadow_enabled = true
-shadow_bias = 0.2
-shadow_normal_bias = 1.0
-shadow_opacity = 0.8
+shadow_bias = 0.06
+shadow_normal_bias = 4.0
+shadow_opacity = 0.62
 directional_shadow_mode = 0
-directional_shadow_blend_splits = true
-directional_shadow_max_distance = 30.0
-directional_shadow_pancake_size = 2.0
+directional_shadow_max_distance = 42.0
+directional_shadow_fade_start = 0.85
+directional_shadow_pancake_size = 20.0
 sky_mode = 1
 
 [node name="GridMap" type="GridMap" parent="." unique_id=746223562]
