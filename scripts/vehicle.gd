@@ -29,6 +29,13 @@ var is_motorcycle: bool = false
 var current_preset_id: String = "truck_yellow"
 var _paint_material: ShaderMaterial
 
+const PAINT_SHADER: Shader = preload("res://shaders/car_paint.gdshader")
+const GHOST_PAINT_SHADER: Shader = preload("res://shaders/car_paint_ghost.gdshader")
+
+## Rivals race as see-through ghosts and cast no shadow, which is also what keeps
+## them out of the directional light's shadow pass. Set before the model is built.
+var ghost_look: bool = false
+
 # Effects
 
 @onready var trail_left = get_node_or_null("Container/TrailLeft")
@@ -154,25 +161,36 @@ func _get_active_color(preset: Dictionary = {}) -> Color:
 	return Color(1.0, 0.70, 0.0)
 
 func apply_body_color(color: Color) -> void:
-	if _paint_material == null:
-		var shader = preload("res://shaders/car_paint.gdshader")
+	# The ghost shader is a separate one rather than an alpha uniform on the solid
+	# one: transparency is a property of the shader, so a single shared shader
+	# would move the player's car into the transparent pass too.
+	var shader: Shader = GHOST_PAINT_SHADER if ghost_look else PAINT_SHADER
+	if _paint_material == null or _paint_material.shader != shader:
 		_paint_material = ShaderMaterial.new()
 		_paint_material.shader = shader
 		_paint_material.set_shader_parameter("albedo_texture", preload("res://models/Textures/colormap.png"))
-	
+
 	_paint_material.set_shader_parameter("paint_color", color)
 	var preset = CarPresets.get_preset_by_id(current_preset_id)
 	_paint_material.set_shader_parameter("paint_region", CarPresets.paint_region(preset))
 	_paint_material.set_shader_parameter("use_paint_override", true)
+
+	var shadow_mode := (
+		GeometryInstance3D.SHADOW_CASTING_SETTING_OFF if ghost_look
+		else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	)
 
 	# Paint panels may live on separate body, fork, or wheel meshes. The shader's
 	# per-preset palette mask leaves lights, glass, tires, and neutral trim intact.
 	var model = $Container.get_node_or_null("Model")
 	if model:
 		for child in model.find_children("*", "MeshInstance3D", true, false):
-			(child as MeshInstance3D).material_override = _paint_material
+			var mesh_instance := child as MeshInstance3D
+			mesh_instance.material_override = _paint_material
+			mesh_instance.cast_shadow = shadow_mode
 	elif vehicle_body:
 		vehicle_body.material_override = _paint_material
+		vehicle_body.cast_shadow = shadow_mode
 
 func setup_nameplate(display_name: String) -> void:
 	if nameplate_label == null:

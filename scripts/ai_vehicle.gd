@@ -64,6 +64,9 @@ static func _get_shared_pop_audio() -> AudioStreamWAV:
 	return _shared_pop_audio
 
 func _ready() -> void:
+	# Every rival is a ghost, whether it is replaying a real shared lap or driving
+	# as practice AI. Set before the model exists so the first paint applies it.
+	ghost_look = true
 	apply_car_preset(car_body)
 	apply_body_color(rival_color)
 	# Opponents pass through the player and each other.
