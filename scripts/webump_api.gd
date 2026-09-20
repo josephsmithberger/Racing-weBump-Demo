@@ -1,7 +1,7 @@
 extends Node
 ## weBump Connected Games client for this demo (autoload `WeBumpAPI`).
 ##
-## One node owns the delegated session (OAuth device grant, public client), the
+## One node owns the delegated session (public-client OAuth), the
 ## player's private save, the reviewed public capsule/showcase values, the selected
 ## shared replay, and the authorized visitor cards. Tokens live only in memory.
 ## docs/API_INTEGRATION.md explains the contract this file implements.
@@ -70,6 +70,9 @@ var _write_queue: Array[Dictionary] = []
 var _writing := false
 var _refreshing := false
 var _session_generation := 0
+var _browser_connection_id := ""
+var _web_connection_callback
+var approval_method := "device_code"
 var _web_callback # JavaScriptObject; kept referenced so the browser callback stays alive.
 
 func _ready() -> void:
@@ -83,6 +86,8 @@ func _ready() -> void:
 		# The export shell (web/shell.html) relays approval results from the popup here.
 		_web_callback = JavaScriptBridge.create_callback(_on_web_callback)
 		JavaScriptBridge.get_interface("window").webumpDeliverCallback = _web_callback
+		_web_connection_callback = JavaScriptBridge.create_callback(_on_browser_connection)
+		JavaScriptBridge.get_interface("window").webumpDeliverConnection = _web_connection_callback
 
 func _load_config() -> void:
 	if not FileAccess.file_exists(CONFIG_PATH):
@@ -148,6 +153,15 @@ var approval_app_url := ""
 var approval_page_url := ""
 
 func _start_live_oauth_flow() -> void:
+	approval_user_code = ""
+	approval_app_url = ""
+	approval_page_url = ""
+	if OS.has_feature("web") and JavaScriptBridge.eval("window.webumpHostedConnectionReady === true", true):
+		_browser_connection_id = _base64url(Crypto.new().generate_random_bytes(32))
+		JavaScriptBridge.eval("window.webumpConnect(%s)" % JSON.stringify(_browser_connection_id), true)
+		return
+	# Direct web exports and native builds retain the reviewed device method.
+	approval_method = "device_code"
 	# Explicit reviewed device grant works in native apps and browser exports alike.
 	var response := await _http("/oauth/device_authorization", HTTPClient.METHOD_POST, {
 		"client_id": client_id, "scope": " ".join(scopes)})
@@ -155,6 +169,40 @@ func _start_live_oauth_flow() -> void:
 		_fail_connection("Could not start device connection (%s). Check that this project is approved for device connections." % str(response.data.get("error", response.status)))
 		return
 	await _await_device_approval(response.data)
+
+func _on_browser_connection(args: Array) -> void:
+	var payload: Variant = JSON.parse_string(str(args[0])) if not args.is_empty() else null
+	if not payload is Dictionary or _browser_connection_id.is_empty() or payload.get("id") != _browser_connection_id or not is_connecting:
+		return
+	var request_id := _browser_connection_id
+	match str(payload.get("type", "")):
+		"webump-connection-prompt":
+			approval_method = str(payload.get("method", ""))
+			approval_user_code = str(payload.get("userCode", ""))
+			approval_app_url = str(payload.get("appURL", ""))
+			approval_page_url = str(payload.get("authorizationURL", ""))
+			var qr: Texture2D = null
+			if approval_method == "device_code" and approval_app_url.is_empty():
+				qr = await _load_qr(str(payload.get("qrURL", "")))
+			if _browser_connection_id == request_id and is_connecting:
+				approval_started.emit(qr, approval_page_url)
+		"webump-connection-result":
+			_browser_connection_id = ""
+			approval_finished.emit()
+			_store_tokens(payload.get("tokens", {}))
+			await fetch_player_profile()
+		"webump-connection-error":
+			_browser_connection_id = ""
+			approval_finished.emit()
+			_fail_connection("Connection ended: %s. Please try Connect again." % str(payload.get("error", "connection_failed")))
+
+func _cancel_browser_connection() -> void:
+	if _browser_connection_id.is_empty():
+		return
+	var request_id := _browser_connection_id
+	_browser_connection_id = ""
+	if OS.has_feature("web"):
+		JavaScriptBridge.eval("window.webumpCancelConnection(%s)" % JSON.stringify(request_id), true)
 
 func _await_device_approval(begin: Dictionary) -> void:
 	var generation := _session_generation
@@ -248,6 +296,7 @@ func _open_approval(app_url: String, page_url: String) -> void:
 func cancel_approval() -> void:
 	if not is_connecting and _handoff_pkce.is_empty():
 		return
+	_cancel_browser_connection()
 	_session_generation += 1
 	_handoff_pkce.clear()
 	approval_finished.emit()
@@ -323,6 +372,7 @@ func _store_tokens(tokens: Dictionary) -> void:
 	token_expires_at = int(Time.get_unix_time_from_system()) + int(tokens.get("expires_in", 600))
 
 func _fail_connection(message: String) -> void:
+	_cancel_browser_connection()
 	is_connecting = false
 	access_token = ""
 	refresh_token = ""
@@ -332,6 +382,7 @@ func _fail_connection(message: String) -> void:
 
 ## Ends the session. Revocation is best effort; local saves are always kept.
 func disconnect_player(revoke: bool = true) -> void:
+	_cancel_browser_connection()
 	if revoke and not is_mock_mode and not refresh_token.is_empty():
 		_revoke(refresh_token)
 	is_authenticated = false

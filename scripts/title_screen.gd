@@ -415,7 +415,11 @@ func _on_connection_changed(connected: bool, profile: Dictionary) -> void:
 func _on_approval_started(qr: Texture2D, approval_url: String) -> void:
 	var api = _get_api()
 	approval_open.text = "OPEN WEBUMP" if not api.approval_app_url.is_empty() else "OPEN APPROVAL PAGE"
-	if qr == null:
+	if api.approval_method == "authorization_code":
+		approval_title.text = "Approve in weBump"
+		approval_qr.visible = false
+		approval_status.text = "Approve the connection in weBump, then return to this game tab. If the app did not open, tap Open weBump."
+	elif qr == null:
 		# The player sees the matching code before tapping to switch apps.
 		approval_title.text = "Finish in weBump"
 		approval_qr.visible = false
@@ -425,7 +429,8 @@ func _on_approval_started(qr: Texture2D, approval_url: String) -> void:
 		approval_qr.texture = qr
 		approval_qr.visible = true
 		approval_status.text = "Open the Camera app and point it at this code, then approve in weBump. This screen continues on its own.\n%s" % approval_url
-	approval_status.text = "Match code %s in weBump. Only approve the device you just opened.\n\n" % api.approval_user_code + approval_status.text
+	if api.approval_method == "device_code":
+		approval_status.text = "Match code %s in weBump. Only approve the device you just opened.\n\n" % api.approval_user_code + approval_status.text
 	approval_panel.visible = true
 
 func _on_approval_finished() -> void:

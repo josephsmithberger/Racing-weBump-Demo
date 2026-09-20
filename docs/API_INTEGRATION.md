@@ -50,26 +50,37 @@ rejected server-side, so the recorder must not add fields without a schema updat
 
 ## Approval flow and session
 
-The demo is a public OAuth client. `_start_live_oauth_flow()` requests
-`/oauth/authorize` with `Accept: application/json` and `display=popup`, which
-returns `authorization_url`, `app_url` and `request` instead of redirecting.
-`_await_approval()` announces the game with `POST /oauth/pending` and polls
-`GET /oauth/pending` every two seconds for up to five minutes. When the player is
-already on the iPhone running weBump, the export shell (`web/shell.html`) opens
-`app_url` (`webump://connect?…`) and they return to Safari already connected.
-Everywhere else the game fetches `qr_url`, rasterizes the SVG with
-`Image.load_svg_from_string`, and shows it on the title screen: the player scans
-it with their phone, approves there, and the poll finishes on the screen in front
-of them. Nothing is opened, so no popup can be blocked.
+The demo is a public OAuth client. On `https://webump.app/demo`, the generic
+JavaScript SDK on the host selects callback + PKCE for an iPhone/iPad and device
+approval on computers. On the same phone, Connect opens weBump, the player
+approves permissions, and the registered callback relays the result to the
+original game tab without a matching-code step. Keep that tab open and return
+to the same browser. If Safari blocks the app switch, the host shows an Open
+weBump link. The game can cancel either flow.
 
-The choice between the two is `approval_display` in `config.json`: `auto` (open
-the app on an iPhone, scan anywhere else), `app`, or `scan`. The API returns
-`app_url` and `qr_url` on every request, so this is presentation only. `auto`
-uses Godot's `ios` / `web_ios` feature tags rather than sniffing the browser; a
-game that already knows its platform should set the value explicitly instead. The callback URL delivered by polling
-is parsed like a redirect and routed by `state` to `exchange_authorization_code()`
-or `redeem_visitor_handoff()`. Desktop builds follow the same path with the
-system browser. The API answers CORS for `/oauth/*` and `/v1/*`.
+The Godot export shell performs an origin/source-checked handshake with the
+host. `WeBumpAPI.connect_player()` delegates to that host when available. The
+host pins the client, scopes, callback and iframe URL; the game does not supply
+arbitrary OAuth destinations. The host retains PKCE in memory, listens for a
+same-origin callback with matching state, exchanges once, and delivers scoped
+tokens only to the initiating frame/request. Neither callbacks nor tokens are
+returned by `/oauth/pending`.
+
+On computers the same helper uses `/oauth/device_authorization` and polls
+`/oauth/token` with a private device credential. The title screen displays the
+public short code and QR; the player scans with their weBump phone, compares the
+code and approves. Direct GitHub Pages/local exports and native builds without
+the host bridge also use this reviewed device method. Their `approval_display`
+configuration controls whether to show an app link or a QR, not whether matching
+consent is required. Native integrations can use the Swift SDK callback method
+when their own verified app link is configured.
+
+Other developers can call `connectBrowser({clientID,callbackURL,scopes,onPrompt})`
+on their callback origin, or use `attachGameFrame` for an embedded export. The
+callback page calls `relayRedirectCallback`. See the
+[browser quickstart](https://developer.webump.app/tutorial#browser-quickstart).
+Public configuration is safe to publish; approval grants access to a player's
+scoped data, not proof of an unmodified official game binary.
 
 Tokens stay in memory. Access tokens last ten minutes; `_ensure_fresh_token()`
 refreshes once, shortly before expiry, with the rotating refresh token. A

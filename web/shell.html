@@ -36,8 +36,8 @@ body { color: white; background-color: #0b0e16; overflow: hidden; touch-action: 
 // weBump approval relay.
 //
 // The game (scripts/webump_api.gd) calls window.webumpOpenApproval(appUrl, pageUrl)
-// and then polls the API for the result itself. The message listener below is a
-// fallback for a callback page that posts {type, code, state, error} to its opener.
+// for the device flow. Hosted connections use the shared SDK on the callback
+// origin; the legacy popup listener is retained for explicit visitor handoffs.
 // ---------------------------------------------------------------------------
 const APPROVAL_ORIGIN = 'https://webump.app';
 const HOST_ORIGIN = 'https://webump.app'; // The page allowed to embed this game.
@@ -47,7 +47,21 @@ let approvalWindow = null;
 // Called only when the player is already on the iPhone running weBump: hand the
 // approval straight to the app. Every other device shows a QR code inside the game
 // instead, so nothing here depends on a popup the browser may block.
+// The SDK on the trusted host selects same-phone callbacks or cross-device approval.
+window.webumpHostedConnectionReady = false;
+window.webumpConnect = id => window.parent.postMessage({type:'webump-connect',id}, HOST_ORIGIN);
+window.webumpCancelConnection = id => window.parent.postMessage({type:'webump-cancel',id}, HOST_ORIGIN);
+window.addEventListener('message', event => {
+	if (event.origin !== HOST_ORIGIN || event.source !== window.parent || window.parent === window) return;
+	if (event.data?.type === 'webump-host-ready') window.webumpHostedConnectionReady = true;
+	if (['webump-connection-prompt','webump-connection-result','webump-connection-error'].includes(event.data?.type)
+		&& typeof window.webumpDeliverConnection === 'function') {
+		window.webumpDeliverConnection(JSON.stringify(event.data));
+	}
+});
+if (window.parent !== window) window.parent.postMessage({type:'webump-frame-ready'}, HOST_ORIGIN);
 window.webumpOpenApproval = function (appUrl, pageUrl) {
+	if (!appUrl) { window.open(pageUrl, '_blank', 'noopener'); return true; }
 	const embedded = window.parent !== window;
 	const parentOrigin = window.location.ancestorOrigins ? window.location.ancestorOrigins[0] : '';
 	if (!embedded) {
@@ -72,6 +86,19 @@ window.addEventListener('message', (event) => {
 		}));
 	}
 });
+
+// Revalidate the small game pack so a cached export cannot keep an old Connect flow.
+// The large engine/WASM files keep their normal caching behavior.
+const gameFetch = window.fetch.bind(window);
+window.fetch = (input, options) => {
+	if (typeof input === 'string') {
+		const url = new URL(input, window.location.href);
+		if (url.origin === window.location.origin && url.pathname.endsWith('/index.pck')) {
+			options = { ...options, cache: 'no-cache' };
+		}
+	}
+	return gameFetch(input, options);
+};
 
 const GODOT_CONFIG = $GODOT_CONFIG;
 const GODOT_THREADS_ENABLED = $GODOT_THREADS_ENABLED;

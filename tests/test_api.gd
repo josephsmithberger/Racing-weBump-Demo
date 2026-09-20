@@ -37,6 +37,15 @@ class FakeAPI extends "res://scripts/webump_api.gd":
 			revision += 1
 		return {"ok": ok, "status": 200 if ok else 409, "data": {}}
 
+class BrowserAPI extends "res://scripts/webump_api.gd":
+	var profile_reads := 0
+	func _ready() -> void:
+		is_mock_mode = false
+	func fetch_player_profile() -> void:
+		profile_reads += 1
+		is_authenticated = true
+		is_connecting = false
+
 var ok := true
 
 func _check(name: String, passed: bool) -> void:
@@ -108,6 +117,22 @@ func _run() -> void:
 	api.set_visitor_cards([{"reference": "example"}])
 	api.disconnect_player()
 	_check("step 13", api.visitor_cards.is_empty() and not api.shared_data_sharing)
+	var browser := BrowserAPI.new()
+	root.add_child(browser)
+	browser.is_connecting = true
+	browser._browser_connection_id = "active-request"
+	browser._on_browser_connection([JSON.stringify({"type":"webump-connection-result","id":"stale-request","tokens":{"access_token":"stale"}})])
+	_check("browser ignores another connection", browser.profile_reads == 0 and browser.access_token.is_empty())
+	browser._on_browser_connection([JSON.stringify({"type":"webump-connection-prompt","id":"active-request","method":"authorization_code","appURL":"webump://connect?request=fixture","authorizationURL":"https://webump.app/connect","userCode":""})])
+	_check("callback has no matching code", browser.approval_method == "authorization_code" and browser.approval_user_code.is_empty())
+	browser._on_browser_connection([JSON.stringify({"type":"webump-connection-result","id":"active-request","tokens":{"access_token":"approved","refresh_token":"refresh","expires_in":600}})])
+	_check("browser consumes approved result once", browser.profile_reads == 1 and browser.access_token == "approved" and browser._browser_connection_id.is_empty())
+	browser.is_connecting = true
+	browser._browser_connection_id = "cancelled-request"
+	browser.cancel_approval()
+	browser._on_browser_connection([JSON.stringify({"type":"webump-connection-result","id":"cancelled-request","tokens":{"access_token":"late"}})])
+	_check("browser ignores cancelled result", browser.profile_reads == 1 and browser.access_token.is_empty())
+	browser.queue_free()
 	print("API contract checks: ", "PASS" if ok else "FAIL")
 	api.queue_free()
 	await process_frame
