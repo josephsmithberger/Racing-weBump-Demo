@@ -105,7 +105,29 @@ The game takes a roster snapshot at countdown. `set_visitor_cards` accepts up to
 50 cards and the roster picks three, prioritizing valid recordings. Malformed
 recordings use AI. Names/colors come from the visitor profile, the ghost model
 comes from the recording, and AI model selection uses the optional approved
-`stats.car_body` enum. Unknown model IDs fall back to the bundled Classic Cab.
+`stats.car_body` enum.
+
+A `reference` is one bump receipt rather than a player ID, so the same person can
+appear on several cards. `RivalRoster` groups them by the API's opaque
+`visitor_id` and keeps a valid ghost card when available. That ID is scoped to
+this project and the receiving player; it is not `/v1/me.id` or an access key.
+Names/colors are never identity. Older cards without `visitor_id` deduplicate
+only identical receipt references.
+
+Recognition lasts while unexpired receipts maintain continuity (seven days per
+receipt), resets after a gap or privacy withdrawal, and does not survive a new
+weBump installation. Continue fetching data by the current receipt `reference`,
+not `visitor_id`. Blocks remove old receipts permanently; unblocking does not
+restore them. Explicit game disconnect/revocation/deletion and visitor opt-out
+or project exclusion also reset the affected relationships.
+
+A rival races in the bumper's own `theme_color` and, for a ghost, the car from the
+recording; a card's values are used exactly as given and are never adjusted to suit
+the rest of the grid. Only what a card leaves unset is assigned: the roster hands
+that rival an unused weBump brand color and car model, seeded from its reference so
+the look is stable for a session, and skips whatever the player is driving. Without
+this, every card missing `theme_color` or `stats.car_body` fell back to the same
+Dodger blue Classic Cab. Unknown model IDs are treated as unset.
 
 ## Card shape after refresh
 

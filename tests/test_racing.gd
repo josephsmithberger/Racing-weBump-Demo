@@ -38,6 +38,42 @@ func _run() -> void:
 	var roster := RivalRoster.from_visitors([cards[1], cards[2], cards[0], cards[0], null])
 	check(roster.size() == 3 and roster[0].kind == "Ghost", "Deduplicate and prioritize ghosts")
 	check(roster[0].car_body == "truck_red" and roster[0].color == Color("#FF3366"), "Use recorded car and visitor theme")
+	# A reference is one bump receipt, so one person can supply several cards.
+	var repeats: Array = [
+		{"reference": "bump-1", "visitor_id": "visitor-a", "display_name": "Ada", "theme_color": "#4488CC"},
+		{"reference": "bump-2", "visitor_id": "visitor-a", "display_name": "Renamed", "theme_color": "#88CC44"},
+		{"reference": "bump-3", "visitor_id": "visitor-a", "display_name": "Ada", "theme_color": "#4488CC", "ghost_telemetry": ghost},
+		{"reference": "bump-4", "display_name": "Grace"},
+		{"reference": "bump-5"},
+	]
+	roster = RivalRoster.from_visitors(repeats)
+	check(roster.size() == 3, "One person's repeat bumps must take one grid slot")
+	check(roster[0].kind == "Ghost" and roster[0].id == "bump-3", "Keep a repeat visitor's best card")
+	var same_looks := RivalRoster.from_visitors([
+		{"reference": "look-a", "visitor_id": "person-a", "display_name": "Ada", "theme_color": "#4488CC"},
+		{"reference": "look-b", "visitor_id": "person-b", "display_name": "Ada", "theme_color": "#4488CC"},
+	])
+	check(same_looks.size() == 2, "Different visitor IDs with identical appearance remain distinct")
+	var legacy := RivalRoster.from_visitors([
+		{"reference": "legacy-a", "display_name": "Ada", "theme_color": "#4488CC"},
+		{"reference": "legacy-b", "display_name": "Ada", "theme_color": "#4488CC"},
+	])
+	check(legacy.size() == 2, "Older cards never infer identity from name and color")
+	RivalRoster.fill(roster)
+	check(roster.size() == RivalRoster.MAX_RIVALS, "Practice drivers fill the grid")
+	var looks := {}
+	for entry in roster:
+		check(not looks.has(entry.color), "Rivals must not share a paint: %s" % entry.display_name)
+		check(not looks.has(entry.car_body), "Rivals must not share a car body: %s" % entry.display_name)
+		looks[entry.color] = true
+		looks[entry.car_body] = true
+	var sparse := RivalRoster.from_visitors([{"reference": "a"}, {"reference": "b"}, {"reference": "c"}])
+	check(sparse.size() == 3, "Cards without a profile still race")
+	check(sparse[0].car_body != sparse[1].car_body and sparse[1].car_body != sparse[2].car_body,
+		"Cards with no stats.car_body must not all get the same model")
+	check(sparse[0].color != sparse[1].color and sparse[1].color != sparse[2].color,
+		"Cards with no theme_color must not all get the same paint")
+	check(sparse[0].display_name != sparse[1].display_name, "Unnamed rivals need distinct nameplates")
 	check(RaceStandings.predict_finish(60, 2, 3, [30]) == 90, "Project AI from observed lap pace")
 	check(RaceStandings.predict_finish(120, 2.9, 3, [30, 30]) > 120, "Unfinished AI cannot rank ahead of a finished player")
 	track.free()

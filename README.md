@@ -36,6 +36,11 @@ Game screens call the autoload’s functions and listen to its signals.
 | Rivals from real bumps | `GET /v1/me/visitors`, `…/:ref/shared` | `visitors.receive` + `game.shared` | `load_visitors()` after connecting and every 45 s on the title screen → `RivalRoster` |
 | Disconnect | `POST /oauth/revoke` | — | `disconnect_player()` |
 
+Returning rivals are grouped by the API’s `visitor_id`, scoped to this game and
+receiving player. It survives name/color changes while unexpired receipts maintain
+continuity. Different people with the same appearance stay separate. API reads
+still use `reference`; older cards only deduplicate exact receipt references.
+
 Privacy rules the demo follows, and that you should too:
 
 - Tokens live in memory only. Public identifiers (`client_id`, API origin,

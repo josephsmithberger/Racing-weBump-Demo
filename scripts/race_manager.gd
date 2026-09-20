@@ -140,11 +140,7 @@ func _spawn_rivals() -> void:
 		cards = RivalRoster.demo_cards(path.curve)
 	var roster := RivalRoster.from_visitors(cards, max_laps)
 	# Connected sessions with no eligible bumps still have generic practice opponents.
-	while roster.size() < RivalRoster.MAX_RIVALS:
-		var i := roster.size()
-		roster.append({"id": "practice-%d" % i, "display_name": "Practice %d" % (i + 1),
-			"color": [Color.SEA_GREEN, Color.MEDIUM_PURPLE, Color.ORANGE][i],
-			"car_body": ["truck_green", "truck_purple", "truck_red"][i], "kind": "AI", "ghost": {}})
+	RivalRoster.fill(roster)
 	for i in range(roster.size()):
 		var entry := roster[i]
 		var prefab := preload("res://scenes/ghost_vehicle.tscn") if entry.kind == "Ghost" else preload("res://scenes/ai_vehicle.tscn")
