@@ -34,12 +34,35 @@ static func is_mobile() -> bool:
 		or OS.has_feature("web_ios")
 	):
 		return true
-	
+
+	if is_web_touch_device():
+		return true
+
 	for arg in OS.get_cmdline_user_args():
 		if arg == "--mobile":
 			return true
 	for arg in OS.get_cmdline_args():
 		if arg == "--mobile":
 			return true
-	
+
 	return false
+
+## A touch device the engine's own features miss. `web_ios` and `web_android` are
+## plain user agent matches, and iPadOS reports itself as a Mac for desktop-class
+## browsing, so an iPad reads as `web_macos` and loses the joysticks it is the only
+## way to steer with. Two or more touch points plus either an Apple desktop agent
+## (an iPad; a real Mac reports zero touch points) or a coarse primary pointer (an
+## Android or Windows tablet, where a mouse would report a fine one) marks a device
+## with no keyboard to fall back on. WeBumpAPI runs the Apple-only half of this
+## check to decide whether it can hand an approval straight to the weBump app.
+static func is_web_touch_device() -> bool:
+	if not OS.has_feature("web"):
+		return false
+	var touch_only: Variant = JavaScriptBridge.eval("""
+		(function () {
+			if ((navigator.maxTouchPoints || 0) < 2) return 0;
+			if (/Mac|iPad|iPhone|iPod/.test(navigator.platform || navigator.userAgent || '')) return 1;
+			return (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) ? 1 : 0;
+		})()
+	""", true)
+	return typeof(touch_only) in [TYPE_BOOL, TYPE_INT, TYPE_FLOAT] and int(touch_only) == 1
