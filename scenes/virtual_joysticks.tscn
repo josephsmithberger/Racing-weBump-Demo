@@ -1,6 +1,6 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene format=3 uid="uid://dojqi2babilu4"]
 
-[ext_resource type="Script" path="res://scripts/virtual_joysticks.gd" id="1_vj_layer"]
+[ext_resource type="Script" uid="uid://cl366cp6weg4g" path="res://scripts/virtual_joysticks.gd" id="1_vj_layer"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_left_base"]
 bg_color = Color(0.06, 0.08, 0.14, 0.55)
@@ -86,13 +86,12 @@ corner_radius_bottom_left = 10000
 shadow_color = Color(1, 0.72, 0, 0.5)
 shadow_size = 8
 
-[node name="VirtualJoysticks" type="CanvasLayer"]
+[node name="VirtualJoysticks" type="CanvasLayer" unique_id=1340640307]
 layer = 2
 script = ExtResource("1_vj_layer")
 
-[node name="LeftJoystick" type="VirtualJoystick" parent="."]
+[node name="LeftJoystick" type="VirtualJoystick" parent="." unique_id=1725449400]
 unique_name_in_owner = true
-layout_mode = 3
 anchors_preset = 2
 anchor_top = 1.0
 anchor_bottom = 1.0
@@ -105,17 +104,17 @@ theme_override_styles/normal_joystick = SubResource("StyleBoxFlat_left_base")
 theme_override_styles/normal_tip = SubResource("StyleBoxFlat_left_tip")
 theme_override_styles/pressed_joystick = SubResource("StyleBoxFlat_left_base")
 theme_override_styles/pressed_tip = SubResource("StyleBoxFlat_left_tip_pressed")
-joystick_size = 120.0
-tip_size = 50.0
+joystick_mode = 2
+joystick_size = 170.0
+tip_size = 75.0
 deadzone_ratio = 0.05
 action_left = &"left"
 action_right = &"right"
 action_up = &"none"
 action_down = &"none"
 
-[node name="RightJoystick" type="VirtualJoystick" parent="."]
+[node name="RightJoystick" type="VirtualJoystick" parent="." unique_id=1330295140]
 unique_name_in_owner = true
-layout_mode = 3
 anchors_preset = 3
 anchor_left = 1.0
 anchor_top = 1.0
@@ -131,8 +130,9 @@ theme_override_styles/normal_joystick = SubResource("StyleBoxFlat_right_base")
 theme_override_styles/normal_tip = SubResource("StyleBoxFlat_right_tip")
 theme_override_styles/pressed_joystick = SubResource("StyleBoxFlat_right_base")
 theme_override_styles/pressed_tip = SubResource("StyleBoxFlat_right_tip_pressed")
-joystick_size = 120.0
-tip_size = 50.0
+joystick_mode = 2
+joystick_size = 170.0
+tip_size = 75.0
 deadzone_ratio = 0.05
 action_left = &"none"
 action_right = &"none"
