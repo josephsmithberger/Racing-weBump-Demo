@@ -4,6 +4,8 @@ class FakeAPI extends "res://scripts/webump_api.gd":
 	var requests: Array[String] = []
 	var revision := 7
 	var fail_write := false
+	var state_document := {"racing_save": {"best_3lap_ms": 99000}}
+	var published_document := {}
 	func _ready() -> void:
 		is_mock_mode = false
 		is_authenticated = true
@@ -16,6 +18,8 @@ class FakeAPI extends "res://scripts/webump_api.gd":
 		requests.append(verb + path)
 		await get_tree().process_frame
 		if method == HTTPClient.METHOD_GET:
+			if path == "/v1/me/shared":
+				return {"ok": true, "status": 200, "data": {"data": published_document}}
 			if path == "/v1/me/permissions":
 				return {"ok": true, "status": 200, "data": {"shared_data_sharing": player_opted_in}}
 			if path == "/v1/me/visitors/shares/shared":
@@ -26,12 +30,13 @@ class FakeAPI extends "res://scripts/webump_api.gd":
 				return {"ok": true, "status": 200, "data": {"visitors": [{"reference": "shares", "display_name": "Rival", "theme_color": "#112233"}, {"reference": "private", "display_name": "Quiet", "theme_color": "#445566"}]}}
 			if path.begins_with("/v1/me/visitors/"):
 				return {"ok": true, "status": 200, "data": {"reference": path.get_slice("/", 4), "display_name": "Rival", "theme_color": "#112233", "stats": {}}}
-			return {"ok": true, "status": 200, "etag": '"%d"' % revision, "data": {"data": {"racing_save": {"best_3lap_ms": 99000}}}}
+			return {"ok": true, "status": 200, "etag": '"%d"' % revision, "data": {"data": state_document}}
 		if path == "/v1/me/shared" and method == HTTPClient.METHOD_PUT:
 			# Mirrors store.ts: publication needs the player's toggle and an explicit publish flag.
 			if not player_opted_in or payload.get("publish") != true:
 				return {"ok": false, "status": 403, "data": {"error": "consent_required"}}
 			shared_bodies.append(payload.value)
+			published_document = payload.value
 		var ok := not fail_write and etag == '"%d"' % revision
 		if ok:
 			revision += 1
@@ -117,6 +122,45 @@ func _run() -> void:
 	api.set_visitor_cards([{"reference": "example"}])
 	api.disconnect_player()
 	_check("step 13", api.visitor_cards.is_empty() and not api.shared_data_sharing)
+	# Recover cloud replays and re-upload stats rejected by an earlier definition.
+	api.is_authenticated = true
+	api.player_opted_in = true
+	api.current_player_profile = {"id": "player-one"}
+	api.local_state = {"player_id": "player-one", "racing_save": {"best_3lap_ms": 110000, "best_lap_ms": 40000}}
+	api.state_document = {"racing_save": {"best_3lap_ms": 99000, "best_lap_ms": 33000}, "ghost_telemetry": document}
+	api.requests.clear()
+	await api.sync_player_progress()
+	while api._writing:
+		await process_frame
+	_check("cloud best and replay restored", api.local_state.racing_save.best_3lap_ms == 99000 and api.local_state.ghost_telemetry == document)
+	_check("profile stats resynced on connect", api.requests.has("PUT /v1/me/showcase") and api.local_showcase.best_time_sec == 99)
+	api.published_document = {}
+	api.shared_bodies.clear()
+	api.sync_best_replay()
+	while api.replay_syncing:
+		await process_frame
+	_check("saved best published on reconnect", api.shared_bodies == [document])
+	api.sync_best_replay()
+	while api.replay_syncing:
+		await process_frame
+	_check("unchanged best not republished", api.shared_bodies.size() == 1)
+	api.published_document = {}
+	api.sync_best_replay()
+	while api.replay_syncing:
+		await process_frame
+	_check("expired or withdrawn replay not silently republished", api.shared_bodies.size() == 1)
+	api.local_state.racing_save.best_3lap_ms = 90000
+	await api.sync_player_progress()
+	while api._writing:
+		await process_frame
+	_check("better offline result survives cloud load", api.local_state.racing_save.best_3lap_ms == 90000)
+	# Account switching cannot publish someone else's local replay.
+	api.current_player_profile = {"id": "player-two"}
+	api.state_document = {}
+	await api.sync_player_progress()
+	while api._writing:
+		await process_frame
+	_check("different account drops previous replay", not api.local_state.has("ghost_telemetry") and int(api.local_state.racing_save.get("best_3lap_ms", 0)) == 0)
 	var browser := BrowserAPI.new()
 	root.add_child(browser)
 	browser.is_connecting = true

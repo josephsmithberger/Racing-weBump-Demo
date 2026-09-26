@@ -18,6 +18,7 @@ signal capsule_loaded(value: Dictionary)
 signal showcase_saved(value: Dictionary)
 signal showcase_loaded(value: Dictionary)
 signal shared_data_published(value: Dictionary)
+signal replay_sync_finished(ok: bool, message: String)
 signal permissions_loaded(permissions: Dictionary)
 ## Approval is waiting on the player's phone. `qr` is null when the weBump app was
 ## opened directly on this device, so no code needs scanning.
@@ -60,6 +61,10 @@ var local_showcase: Dictionary = {}
 var shared_data_sharing := false
 var current_etag := ""
 var last_write_status := 0
+var profile_sync_message := ""
+var replay_sync_message := ""
+var replay_syncing := false
+var replay_retryable := false
 ## Session-only authorized cards from the redeemed visitor handoff.
 var visitor_cards: Array = []
 
@@ -361,8 +366,9 @@ func fetch_player_profile() -> void:
 	local_state["known_player"] = {"display_name": get_player_display_name(), "theme_color": get_player_theme_color_hex(),
 		"connected_at": Time.get_datetime_string_from_system()}
 	_save_local_state()
-	await get_state("racing_save")
+	await sync_player_progress()
 	await fetch_permissions()
+	sync_best_replay()
 	auth_succeeded.emit(current_player_profile, false)
 	await load_visitors()
 
@@ -574,6 +580,94 @@ func get_state(key: String, callback: Callable = Callable()) -> void:
 	if callback.is_valid():
 		callback.call(ok, value)
 
+## Restore the whole private document, keeping a better offline result. A new
+## account must never inherit the previous connected player's saved recording.
+func sync_player_progress() -> void:
+	var player_id := str(current_player_profile.get("id", ""))
+	var owner := str(local_state.get("player_id", ""))
+	if not owner.is_empty() and owner != player_id:
+		local_state.erase("racing_save")
+		local_state.erase("ghost_telemetry")
+		local_state.erase("published_replay_hash")
+		local_capsule.clear()
+		local_showcase.clear()
+	local_state["player_id"] = player_id
+	_save_local_state()
+	var response := await _request_json("/v1/me/state")
+	if not response.ok:
+		profile_sync_message = "Could not load cloud save; local progress kept"
+		return
+	var cloud: Dictionary = response.data.get("data", {})
+	var local_save: Variant = local_state.get("racing_save", {})
+	if not local_save is Dictionary:
+		local_save = {}
+	var remote: Dictionary = cloud.get("racing_save", {}) if cloud.get("racing_save") is Dictionary else {}
+	var merged: Dictionary = remote.duplicate(true)
+	for key in ["best_3lap_ms", "best_lap_ms"]:
+		var local_time := int(local_save.get(key, 0))
+		var remote_time := int(remote.get(key, 0))
+		if local_time > 0 and (remote_time <= 0 or local_time < remote_time):
+			merged[key] = local_time
+	merged["races"] = maxi(int(local_save.get("races", 0)), int(remote.get("races", 0)))
+	if not merged.is_empty():
+		local_state["racing_save"] = merged
+		if merged != remote:
+			put_state("racing_save", merged)
+	var ghost: Variant = local_state.get("ghost_telemetry", {})
+	var remote_ghost: Variant = cloud.get("ghost_telemetry", {})
+	if GhostData.is_valid(remote_ghost) and (not GhostData.is_valid(ghost) or remote_ghost.total_time_ms < ghost.total_time_ms):
+		local_state["ghost_telemetry"] = remote_ghost
+	elif GhostData.is_valid(ghost) and ghost != remote_ghost:
+		save_ghost_telemetry(ghost)
+	_save_local_state()
+	if int(merged.get("best_3lap_ms", 0)) > 0:
+		save_public_highscore(float(merged.best_3lap_ms) / 1000.0, float(merged.get("best_lap_ms", 0)) / 1000.0)
+
+## Automatically publish the best complete replay when sharing is enabled.
+## Unchanged publications are not renewed on every reconnect. Private data is
+## never sent through this endpoint, and the server still enforces consent.
+func sync_best_replay() -> void:
+	if replay_syncing or not is_authenticated:
+		return
+	var document := GhostData.shared_document(local_state.get("ghost_telemetry", {}))
+	if document.is_empty():
+		return
+	replay_syncing = true
+	replay_retryable = false
+	replay_sync_message = "Syncing best replay..."
+	await fetch_permissions()
+	if not shared_data_sharing:
+		_finish_replay_sync(false, "Replay saved privately. Enable game data sharing in weBump to share your best runs.")
+		return
+	if not is_mock_mode:
+		var existing := await _request_json("/v1/me/shared")
+		if not existing.ok:
+			_finish_replay_sync(false, "Replay sync failed; saved on this device", true)
+			return
+		var remote: Variant = existing.data.get("data", {})
+		if GhostData.is_valid(remote) and remote.total_time_ms <= document.total_time_ms:
+			_finish_replay_sync(true, "Best replay shared with eligible people you bump")
+			return
+		if remote.is_empty() and local_state.get("published_replay_hash", "") == JSON.stringify(document).sha256_text():
+			_finish_replay_sync(true, "Replay expired or withdrawn; your next best run will share automatically")
+			return
+	publish_shared_data(document, func(ok: bool, _value: Variant):
+		if ok:
+			local_state["published_replay_hash"] = JSON.stringify(document).sha256_text()
+			_save_local_state()
+			_finish_replay_sync(true, "Best replay shared automatically for 7 days")
+		elif last_write_status == 403:
+			_finish_replay_sync(false, "Replay saved privately. Check game data sharing in weBump.")
+		else:
+			_finish_replay_sync(false, "Replay upload failed (HTTP %d); saved on this device" % last_write_status, true)
+	)
+
+func _finish_replay_sync(ok: bool, message: String, retryable: bool = false) -> void:
+	replay_syncing = false
+	replay_retryable = retryable
+	replay_sync_message = message
+	replay_sync_finished.emit(ok, message)
+
 func put_state(key: String, value: Variant, callback: Callable = Callable()) -> void:
 	local_state[key] = value
 	_save_local_state()
@@ -589,7 +683,13 @@ func save_public_highscore(total_time_seconds: float, best_lap_seconds: float = 
 	var highscore_sec := int(round(total_time_seconds))
 	var public_data := {"highscore_seconds": highscore_sec, "best_time_sec": highscore_sec, "best_lap_sec": int(round(best_lap_seconds))}
 	put_capsule(public_data, callback)
-	put_showcase(public_data)
+	profile_sync_message = "Syncing profile stats..."
+	put_showcase(public_data, func(ok: bool, _value: Variant):
+		if is_authenticated and not is_mock_mode:
+			profile_sync_message = "Profile stats synced" if ok else "Profile stats not synced (HTTP %d); saved on this device" % last_write_status
+		else:
+			profile_sync_message = "Profile stats saved on this device"
+	)
 	return public_data
 
 func get_public_highscore_seconds() -> int:
@@ -653,7 +753,7 @@ func fetch_permissions(callback: Callable = Callable()) -> void:
 	if callback.is_valid():
 		callback.call(ok, permissions)
 
-## Publish one player-selected document. Call only from an explicit in-game action.
+## Publish only the game's selected document under the player's weBump consent.
 ## 403 means the player has not enabled "Share selected game data" in weBump.
 func publish_shared_data(value: Dictionary, callback: Callable = Callable()) -> void:
 	_queue_write("/v1/me/shared", value, shared_data_published.emit, callback, "", true)
@@ -674,17 +774,19 @@ func _drain_writes() -> void:
 	_writing = true
 	while not _write_queue.is_empty():
 		var write: Dictionary = _write_queue.pop_front()
+		last_write_status = 0
 		var ok: bool = write.generation == _session_generation
 		if ok and not is_mock_mode and is_authenticated:
 			# Read a fresh strong ETag first and send it as If-Match; a 409 surfaces
 			# instead of silently overwriting another session's save.
 			var document := await _request_json("/v1/me/state")
+			last_write_status = document.status
 			ok = document.ok and not document.get("etag", "").is_empty()
 			if ok:
 				current_etag = document.etag
 				var body: Dictionary = {"value": write.value}
 				if write.publish:
-					body["publish"] = true # Explicit selection; the server rejects implicit publication.
+					body["publish"] = true # Select this document only; never expose the full private save.
 				var response := await _request_json(write.path, write.method, body, current_etag)
 				ok = response.ok
 				last_write_status = response.status

@@ -499,6 +499,14 @@ text = "Ready to race! Connect weBump to sync custom colors."
 horizontal_alignment = 1
 autowrap_mode = 2
 
+[node name="ReplaySharingNote" type="Label" parent="MainMargin/MainHBox/DeckColumn/DeckPanel/DeckVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.62, 0.75, 1)
+theme_override_font_sizes/font_size = 12
+text = "Best replays share automatically when game data sharing is on in weBump."
+horizontal_alignment = 1
+autowrap_mode = 2
+
 [node name="ModeBanner" type="VBoxContainer" parent="MainMargin/MainHBox/DeckColumn/DeckPanel/DeckVBox"]
 unique_name_in_owner = true
 visible = false

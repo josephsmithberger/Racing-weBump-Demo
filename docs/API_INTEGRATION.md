@@ -33,7 +33,7 @@ operations), `home-api/platform/shared-data.ts` (schema and payload validation),
 2. The player turns on **Share selected game data** for this game in the weBump
    app. The game cannot enable it. `GET /v1/me/permissions` reports it as
    `shared_data_sharing`; `WeBumpAPI.fetch_permissions()` caches it.
-3. **Share Replay** on the results card calls `GhostRecorder.share_best_ghost()`.
+3. A new best complete run calls `WeBumpAPI.sync_best_replay()` automatically.
    It builds the document with `GhostData.shared_document()`, which keeps only the
    declared keys (`version`, `track_id`, `car_body`, `lap_count`, `total_time_ms`,
    `samples`), then `WeBumpAPI.publish_shared_data()` sends
@@ -43,7 +43,7 @@ operations), `home-api/platform/shared-data.ts` (schema and payload validation),
    `GET /v1/me/visitors/:reference/shared`. A `200` attaches `data` as
    `ghost_telemetry`; `410` means nothing is shared for that person, so the roster
    uses AI. Publications expire after seven days and only reach bumps that happen
-   after the publication, so a rival's ghost can disappear between sessions.
+   after the start of uninterrupted publication. Updates preserve eligibility while the publication remains unexpired; withdrawal or an expiry gap requires a new bump. Same-scope reconnects preserve consent and publication when the player keeps sharing enabled.
 
 Validation of the schema and a worst-case 256-frame payload against the backend
 validator: 10,703 JSON bytes, about 12.2 KiB as JSONB text, under the 16 KiB cap.
@@ -193,3 +193,19 @@ with completed-lap average as a lower bound on lap duration. Current slowdowns
 therefore influence the forecast. Clamp each forecast beyond the player's finish
 time and label it **Estimated**. The screen is a race snapshot, not a platform-wide
 leaderboard or a claim that unfinished AI actually achieved those times.
+
+## Save recovery and visible failures
+
+Connecting restores both `racing_save` and `ghost_telemetry`, keeping the faster
+local/cloud result. It retries capsule and showcase writes so a previously rejected
+score can appear once the project's field definition is corrected. Profile stats
+require the **capsule and showcase** parts of `shared_data_definition.json` as well
+as the corresponding scopes. An empty definition rejects those fields. The player
+also needs “Show on my profile” enabled in Connected Games.
+
+Replay sharing uses the best complete recording automatically, only under the
+player's app-controlled consent. The result card displays sync status and shows a
+retry button only after failure. Slower races do not overwrite the best recording.
+An unchanged live publication is not renewed on reconnect; this device also records
+successful publication to avoid reviving that same replay after expiry/withdrawal.
+Private replay state is never returned by a visitor endpoint.

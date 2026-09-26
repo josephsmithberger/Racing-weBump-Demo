@@ -561,7 +561,7 @@ theme_override_font_sizes/font_size = 20
 theme_override_styles/normal = SubResource("StyleBoxFlat_btn_normal")
 theme_override_styles/hover = SubResource("StyleBoxFlat_btn_hover")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_btn_hover")
-text = "SHARE REPLAY"
+text = "RETRY REPLAY SYNC"
 
 [node name="TitleButton" type="Button" parent="HUDControl/ResultsScreen/Center/ResultsCard/VBox/Buttons"]
 unique_name_in_owner = true

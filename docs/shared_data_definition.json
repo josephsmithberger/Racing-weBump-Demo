@@ -3,34 +3,40 @@
     "highscore_seconds": {
       "type": "integer",
       "min": 0,
-      "max": 10800
+      "max": 10800,
+      "label": "Best race (seconds)"
     },
     "best_time_sec": {
       "type": "integer",
       "min": 0,
-      "max": 10800
+      "max": 10800,
+      "label": "Best time (seconds)"
     },
     "best_lap_sec": {
       "type": "integer",
       "min": 0,
-      "max": 10800
+      "max": 10800,
+      "label": "Best lap (seconds)"
     }
   },
   "showcase": {
     "highscore_seconds": {
       "type": "integer",
       "min": 0,
-      "max": 10800
+      "max": 10800,
+      "label": "Best race (seconds)"
     },
     "best_time_sec": {
       "type": "integer",
       "min": 0,
-      "max": 10800
+      "max": 10800,
+      "label": "Best time (seconds)"
     },
     "best_lap_sec": {
       "type": "integer",
       "min": 0,
-      "max": 10800
+      "max": 10800,
+      "label": "Best lap (seconds)"
     }
   },
   "shared": {

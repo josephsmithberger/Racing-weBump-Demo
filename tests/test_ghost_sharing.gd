@@ -36,27 +36,45 @@ func _run() -> void:
 	await process_frame
 	_check("complete replay saved", GhostData.is_valid(api.local_state.get("ghost_telemetry"), 3))
 	_check("share hidden while disconnected", not hud.share_button.visible and not recorder.can_share_best_ghost())
-	# Connected (mock): the explicit button appears and publishes only the declared document.
-	api.is_connecting = true
-	api._complete_mock_auth()
-	manager.race_finished.emit(total, [total / 3.0, total / 3.0, total / 3.0], total / 3.0)
-	# The results card appears after the finish banner animation.
-	for i in range(900):
-		if hud.results_screen.visible and hud.share_button.visible:
-			break
-		await process_frame
-	_check("share offered to connected player", hud.share_button.visible and recorder.can_share_best_ghost())
-	var document := recorder.best_ghost()
-	_check("declared keys only", document.keys() == GhostData.SHARED_KEYS and document.version == 1 and document.samples.size() >= 2)
+	# A new complete best uploads without pressing any result-card control.
+	api.is_authenticated = true
+	api.shared_data_sharing = true
+	api.local_state.erase("ghost_telemetry")
+	api.local_state.erase("racing_save")
 	var published: Array = []
 	api.shared_data_published.connect(func(value): published.append(value))
-	hud._on_share_pressed()
-	while api._writing:
+	manager.total_time = 0.0
+	manager.race_started.emit()
+	for i in range(90):
+		await physics_frame
+	total = manager.total_time
+	manager.race_finished.emit(total, [total / 3.0, total / 3.0, total / 3.0], total / 3.0)
+	while api._writing or api.replay_syncing:
 		await process_frame
-	for i in range(3):
+	var document := recorder.best_ghost()
+	_check("declared keys only", document.keys() == GhostData.SHARED_KEYS and document.version == 1)
+	_check("best replay uploaded automatically", published == [document])
+	# The results card appears after the finish banner animation.
+	for i in range(900):
+		if hud.results_screen.visible:
+			break
 		await process_frame
-	_check("publication uses the selected document", published == [document])
-	_check("player sees confirmation", recorder.share_message.begins_with("Replay shared") and hud.share_label.visible)
+	await process_frame
+	_check("no routine upload button", not hud.share_button.visible)
+	_check("player sees confirmation", api.replay_sync_message.begins_with("Best replay shared") and hud.share_label.visible)
+	# A slower finish cannot overwrite or republish the best replay.
+	manager.total_time = 0.0
+	manager.race_started.emit()
+	for i in range(120):
+		await physics_frame
+	total = manager.total_time
+	manager.race_finished.emit(total, [total / 3.0, total / 3.0, total / 3.0], total / 3.0)
+	_check("slower race does not publish", published.size() == 1 and recorder.best_ghost() == document)
+	api.shared_data_sharing = false
+	api.sync_best_replay()
+	while api.replay_syncing:
+		await process_frame
+	_check("opt-out keeps replay private", published.size() == 1 and api.replay_sync_message.contains("saved privately"))
 	_check("private save untouched", GhostData.is_valid(api.local_state.get("ghost_telemetry"), 3))
 	print("Ghost sharing flow: ", "PASS" if ok else "FAIL")
 	scene.queue_free()

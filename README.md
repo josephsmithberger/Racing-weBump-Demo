@@ -32,7 +32,7 @@ Game screens call the autoload’s functions and listen to its signals.
 | Read the player's name and color | `GET /v1/me` | `profile.basic` | `fetch_player_profile()` → nameplate and paint |
 | Private save (never visible to others) | `GET /v1/me/state`, `PUT /v1/me/state/:key` | `game.state` | `racing_save`, `ghost_telemetry` |
 | Public high score on bump cards / profile | `PUT /v1/me/capsule`, `PUT /v1/me/showcase` | `game.capsule`, `game.showcase` | `save_public_highscore()` |
-| Share one replay, on purpose | `PUT /v1/me/shared` (`{"publish":true,…}`) | `game.shared` | **Share Replay** button on the results card |
+| Share the best complete replay | `PUT /v1/me/shared` (`{"publish":true,…}`) | `game.shared` | Automatic after a new best; retry control only on failure |
 | Rivals from real bumps | `GET /v1/me/visitors`, `…/:ref/shared` | `visitors.receive` + `game.shared` | `load_visitors()` after connecting and every 45 s on the title screen → `RivalRoster` |
 | Disconnect | `POST /oauth/revoke` | — | `disconnect_player()` |
 
@@ -46,7 +46,7 @@ Privacy rules the demo follows, and that you should too:
 - Tokens live in memory only. Public identifiers (`client_id`, API origin,
   callback) are in [`config.json`](config.json); nothing secret ships in the export.
 - A rival's replay is never read from their private state. Each player publishes
-  one replay through `game.shared` after pressing a button; the server also
+  their best complete replay automatically through `game.shared`; the server also
   requires their own "Share selected game data" toggle in the weBump app.
 - `410` on a shared-document read means that data is unavailable. An authorized
   basic card can use AI instead; if the card itself is unavailable, drop its
@@ -94,7 +94,7 @@ observed pace. Personal bests and complete replays (≤ 3 minutes, ≤ 256 frame
 | `scripts/ghost_driver.gd` | Replay a recording on the race clock |
 | `scripts/ai_vehicle.gd` | Waypoint driver, laps, finish effects |
 | `scripts/race_manager.gd`, `race_standings.gd` | Countdown, roster, checkpoints, results |
-| `scripts/race_hud.gd` | HUD, results card, Share Replay |
+| `scripts/race_hud.gd` | HUD, results card, automatic replay sync status |
 | `scripts/vehicle.gd`, `car_presets.gd` | Vehicle physics, paint and model presets |
 | `web/shell.html` | Web export shell with the origin-checked host connection bridge |
 

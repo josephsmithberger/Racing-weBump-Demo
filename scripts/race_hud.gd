@@ -81,12 +81,16 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	if results_screen.visible and _recorder:
 		# Only touch labels when text changes; Label text assignment reshapes glyphs.
-		if ghost_sync_label.text != _recorder.result_message:
-			ghost_sync_label.text = _recorder.result_message
-		if share_label.text != _recorder.share_message:
-			share_label.text = _recorder.share_message
-			share_label.visible = not _recorder.share_message.is_empty()
-		share_button.disabled = not _recorder.can_share_best_ghost()
+		var api := CarPresets.get_api()
+		var save_status: String = _recorder.result_message + (" - " + api.profile_sync_message if api and not api.profile_sync_message.is_empty() else "")
+		if ghost_sync_label.text != save_status:
+			ghost_sync_label.text = save_status
+		var replay_status: String = api.replay_sync_message if api else ""
+		if share_label.text != replay_status:
+			share_label.text = replay_status
+			share_label.visible = not replay_status.is_empty()
+		share_button.visible = _recorder.can_share_best_ghost()
+		share_button.text = "Retry replay sync"
 
 func format_time(seconds: float) -> String:
 	if seconds < 0.0:
