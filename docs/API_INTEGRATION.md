@@ -90,12 +90,16 @@ refreshes once, shortly before expiry, with the rotating refresh token. A
 failed refresh ends the session (refresh responses are single-use and must not
 be retried). Disconnecting revokes the refresh token best-effort.
 
-1. `load_visitors()` runs after connecting and every 45 seconds on the title
+1. `load_visitors()` runs after connecting and every 10 seconds on the title
    screen: `GET /v1/me/visitors` lists everyone the player bumped since
    connecting whose reveal delay has passed, and each card's shared replay is
    fetched by reference. No handoff or button is involved; the explicit handoff
    (`request_visitors()`) stays available as an example of a player-chosen
    transfer.
+   START RACE stays disabled ("LOADING RIVALS...") until the first load
+   finishes (`visitors_ready`), successful or not, or 12 seconds pass. A race
+   started earlier would snapshot an empty roster and field only practice
+   drivers, even though the player's bumps arrive moments later.
 2. Visitor cards are session-only and cleared on disconnect. Expired receipt
    references are not permanent player IDs. Missing or rejected cards are
    dropped on refresh: revoked or expired rivals are never raced from cache.

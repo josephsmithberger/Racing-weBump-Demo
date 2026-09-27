@@ -115,26 +115,13 @@ static func set_selected_car(id: String) -> void:
 	if f:
 		f.store_string(id)
 	
-	# 2. Persist to webump_state.json
-	var state: Dictionary = {}
-	if FileAccess.file_exists("user://webump_state.json"):
-		var rf = FileAccess.open("user://webump_state.json", FileAccess.READ)
-		if rf:
-			var parsed = JSON.parse_string(rf.get_as_text())
-			if typeof(parsed) == TYPE_DICTIONARY:
-				state = parsed
-	state["selected_car_body"] = id
-	var wf = FileAccess.open("user://webump_state.json", FileAccess.WRITE)
-	if wf:
-		wf.store_string(JSON.stringify(state, "  "))
-	
-	# 3. Inform WeBumpAPI
+	# 2. Persist through WeBumpAPI, which owns webump_state.json. Writing that file
+	# here left the API's in-memory copy stale, so its next save put the old car back
+	# and the following launch restored it.
 	var api = get_api()
 	if api:
-		if api.get("selected_car_body") != id:
-			api.set("selected_car_body", id)
-			if api.has_signal("car_body_changed"):
-				api.emit_signal("car_body_changed", id)
+		if api.get_selected_car_body() != id or api.local_state.get("selected_car_body") != id:
+			api.set_selected_car_body(id)
 	
 	print("[CarPresets] Active car updated to: '%s'" % id)
 

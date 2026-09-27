@@ -73,6 +73,7 @@ func _ready() -> void:
 		api.approval_started.connect(_on_approval_started)
 		api.approval_finished.connect(_on_approval_finished)
 		api.visitors_updated.connect(_on_visitors_updated)
+		api.visitors_failed.connect(func(_message: String): _update_race_gate())
 		if api.is_authenticated and not api.is_mock_mode:
 			_on_visitors_updated(api.visitor_cards)
 			api.load_visitors()
@@ -93,7 +94,7 @@ func _setup_mode_display() -> void:
 	
 	# Outside the editor a race needs a connected player: rivals come from real bumps.
 	var connected: bool = api != null and api.is_authenticated
-	play_button.disabled = not (is_mock or connected)
+	play_button.disabled = not (is_mock or (connected and _rivals_settled()))
 	if is_mock:
 		mode_banner.visible = true
 		if is_editor:
@@ -389,8 +390,10 @@ func _on_connection_changed(connected: bool, profile: Dictionary) -> void:
 	if connected:
 		if _audio:
 			_audio.play_connect_success()
+		_rival_wait = 0.0
 		play_button.disabled = false
 		play_button.text = "START RACE"
+		_update_race_gate()
 		var p_name = profile.get("display_name", "Player")
 		var is_mock = profile.get("is_mock", false)
 		
@@ -455,6 +458,7 @@ func _on_visitors_updated(cards: Array) -> void:
 	var api = _get_api()
 	if api == null or not api.is_authenticated or api.is_mock_mode:
 		return
+	_update_race_gate()
 	var rivals := RivalRoster.from_visitors(cards)
 	if rivals.is_empty():
 		hint_label.text = "No revealed rivals yet — open weBump to sync your recent bumps"
@@ -467,10 +471,30 @@ func _on_visitors_updated(cards: Array) -> void:
 	hint_label.text = "%d rival%s ready to race - %d shared replay%s" % [rivals.size(), "" if rivals.size() == 1 else "s", ghosts, "" if ghosts == 1 else "s"]
 	hint_label.add_theme_color_override("font_color", Color(0.165, 0.690, 0.388, 1.0))
 
+## The race spawns its rivals from the cards held when it starts, so START RACE waits
+## for the first load. A slow or rate-limited load still unlocks after a short wait.
+const RIVAL_WAIT_LIMIT_SECONDS := 12.0
+var _rival_wait := 0.0
+
+func _rivals_settled() -> bool:
+	var api = _get_api()
+	return api != null and (api.visitors_ready or _rival_wait >= RIVAL_WAIT_LIMIT_SECONDS)
+
+func _update_race_gate() -> void:
+	var api = _get_api()
+	if api == null or not api.is_authenticated or api.is_mock_mode or _is_loading:
+		return
+	play_button.disabled = not _rivals_settled()
+	play_button.text = "START RACE" if _rivals_settled() else "LOADING RIVALS..."
+
 func _refresh_visitors(delta: float) -> void:
 	var api = _get_api()
 	if api == null or not api.is_authenticated or api.is_mock_mode or _is_loading:
 		return
+	if not api.visitors_ready and _rival_wait < RIVAL_WAIT_LIMIT_SECONDS:
+		_rival_wait += delta
+		if _rival_wait >= RIVAL_WAIT_LIMIT_SECONDS:
+			_update_race_gate()
 	_visitor_refresh += delta
 	if _visitor_refresh >= VISITOR_REFRESH_SECONDS:
 		_visitor_refresh = 0.0

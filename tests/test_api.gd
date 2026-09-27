@@ -76,6 +76,8 @@ func _initialize() -> void:
 func _run() -> void:
 	var api := FakeAPI.new()
 	root.add_child(api)
+	# START RACE waits for this; a race started earlier spawns only practice drivers.
+	_check("rivals pending before the first load", not api.visitors_ready)
 	var read: Array = []
 	await api.get_state("racing_save", func(ok, value): read.append([ok, value]))
 	_check("read state", read[0][0] and read[0][1].best_3lap_ms == 99000)
@@ -121,6 +123,7 @@ func _run() -> void:
 	api.set_visitor_cards([{"reference": "shares"}, {"reference": "private"}])
 	api.requests.clear()
 	await api.refresh_visitors()
+	_check("rivals ready after the first load", api.visitors_ready)
 	_check("step 10", api.requests == ["GET /v1/me/visitors", "GET /v1/me/visitors/shares/shared", "GET /v1/me/visitors/private/shared"])
 	_check("step 11", api.visitor_cards.size() == 2 and api.visitor_cards[0].ghost_telemetry.track_id == "demo_loop_v1")
 	_check("step 12", not api.visitor_cards[1].has("ghost_telemetry"))

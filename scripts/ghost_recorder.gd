@@ -65,12 +65,14 @@ func _on_race_finished(total_time: float, lap_times: Array, best_lap_time: float
 	var save: Dictionary = previous.duplicate(true)
 	save["races"] = int(previous.get("races", 0)) + 1
 	save["best_lap_ms"] = mini(previous_lap, best_ms) if previous_lap > 0 else best_ms
-	save["car_body"] = api.get_selected_car_body()
+	# Record the car that actually ran this race, not whatever the menu holds now.
+	var car_body: String = _target_vehicle.current_preset_id if _target_vehicle else api.get_selected_car_body()
+	save["car_body"] = car_body
 	if is_record:
 		save["best_3lap_ms"] = total_ms
 	var payload: Dictionary = {}
 	if complete:
-		payload = GhostData.compact({"track_id": GhostData.TRACK_ID, "car_body": api.get_selected_car_body(),
+		payload = GhostData.compact({"track_id": GhostData.TRACK_ID, "car_body": car_body,
 			"lap_count": lap_times.size(), "total_time_ms": total_ms, "samples": _samples})
 	var saved_ghost: Variant = api.local_state.get("ghost_telemetry", {})
 	var improves_ghost := not GhostData.is_valid(saved_ghost) or total_ms < int(saved_ghost.get("total_time_ms", 0))

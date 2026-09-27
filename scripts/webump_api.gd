@@ -67,6 +67,9 @@ var replay_syncing := false
 var replay_retryable := false
 ## Session-only authorized cards from the redeemed visitor handoff.
 var visitor_cards: Array = []
+## True once this session's first rival load has finished, whether it succeeded or
+## not. A race started before then would spawn practice drivers instead of bumps.
+var visitors_ready := false
 
 var _current_verifier := ""
 var _current_state := ""
@@ -403,6 +406,7 @@ func disconnect_player(revoke: bool = true) -> void:
 	token_expires_at = 0
 	current_player_profile.clear()
 	visitor_cards.clear()
+	visitors_ready = false
 	_unavailable_shared.clear()
 	_handoff_pkce.clear()
 	_current_state = ""
@@ -842,6 +846,7 @@ func _drain_writes() -> void:
 ## authorized game.shared read in refresh_visitors(); never another player's private state.
 func set_visitor_cards(cards: Array) -> void:
 	visitor_cards = cards.slice(0, 50).duplicate(true)
+	visitors_ready = true
 	visitors_updated.emit(visitor_cards)
 
 ## Current authorized visitors, including recent history synced by the app.
@@ -861,6 +866,7 @@ func _load_visitors_once() -> void:
 	if generation != _session_generation:
 		return
 	if not response.ok:
+		visitors_ready = true
 		visitors_failed.emit("Couldn't refresh rivals yet. Retrying shortly.")
 		return
 	var cards: Array = []
