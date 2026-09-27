@@ -215,7 +215,9 @@ Private replay state is never returned by a visitor endpoint.
 
 The lobby refreshes the authorized inbox every ten seconds and on return, with
 one refresh in flight. Its count uses the same distinct-person, three-opponent
-roster as the race. Zero-delay weBump profiles have no extra API delay. Recent
+roster as the race. Wrapped bumps remain hidden. The updated weBump app reports its normal unwrap
+(free, ad, elapsed timer or supporter); only then can a zero-delay profile appear
+without extra API delay. Legacy app builds keep a two-hour wait. Recent
 local Bluetooth proofs can be retried by the updated app; expired rolling IDs
 and older plaza history are not imported.
 
