@@ -42,6 +42,18 @@ class FakeAPI extends "res://scripts/webump_api.gd":
 			revision += 1
 		return {"ok": ok, "status": 200 if ok else 409, "data": {}}
 
+class RateLimitedAPI extends "res://scripts/webump_api.gd":
+	var attempts: Array[int] = []
+	var fail_status := 429
+	func _ready() -> void:
+		is_mock_mode = false
+		is_authenticated = true
+		access_token = "test-token"
+	func _http(_path: String, _method: HTTPClient.Method, _payload: Dictionary = {}, _token: String = "", _etag: String = "") -> Dictionary:
+		attempts.append(Time.get_ticks_msec())
+		var status := fail_status if attempts.size() == 1 else 200
+		return {"ok": status == 200, "status": status, "retry_after": 1, "data": {}, "etag": ""}
+
 class BrowserAPI extends "res://scripts/webump_api.gd":
 	var profile_reads := 0
 	func _ready() -> void:
@@ -109,15 +121,20 @@ func _run() -> void:
 	api.set_visitor_cards([{"reference": "shares"}, {"reference": "private"}])
 	api.requests.clear()
 	await api.refresh_visitors()
-	_check("step 10", api.requests == ["GET /v1/me/visitors/shares", "GET /v1/me/visitors/shares/shared",
-		"GET /v1/me/visitors/private", "GET /v1/me/visitors/private/shared"])
+	_check("step 10", api.requests == ["GET /v1/me/visitors", "GET /v1/me/visitors/shares/shared", "GET /v1/me/visitors/private/shared"])
 	_check("step 11", api.visitor_cards.size() == 2 and api.visitor_cards[0].ghost_telemetry.track_id == "demo_loop_v1")
 	_check("step 12", not api.visitor_cards[1].has("ghost_telemetry"))
 	# Automatic listing: one call for the roster, one per rival for the shared replay.
 	api.set_visitor_cards([])
 	api.requests.clear()
 	await api.load_visitors()
-	_check("step 14", api.requests == ["GET /v1/me/visitors", "GET /v1/me/visitors/shares/shared", "GET /v1/me/visitors/private/shared"])
+	_check("Unavailable shared data is briefly cached", api.requests == ["GET /v1/me/visitors", "GET /v1/me/visitors/shares/shared"])
+	api.requests.clear()
+	api.load_visitors()
+	await api.load_visitors()
+	while api._loading_visitors:
+		await process_frame
+	_check("Visitor refresh is single flight", api.requests.count("GET /v1/me/visitors") == 1)
 	_check("step 15", api.visitor_cards.size() == 2 and api.visitor_cards[0].has("ghost_telemetry") and not api.visitor_cards[1].has("ghost_telemetry"))
 	api.set_visitor_cards([{"reference": "example"}])
 	api.disconnect_player()
@@ -161,6 +178,15 @@ func _run() -> void:
 	while api._writing:
 		await process_frame
 	_check("different account drops previous replay", not api.local_state.has("ghost_telemetry") and int(api.local_state.racing_save.get("best_3lap_ms", 0)) == 0)
+	var limited := RateLimitedAPI.new()
+	root.add_child(limited)
+	var retried: Dictionary = await limited._request_json("/v1/me/state", HTTPClient.METHOD_PUT, {"value": {}})
+	_check("429 retries respect Retry-After", retried.ok and limited.attempts.size() == 2 and limited.attempts[1] - limited.attempts[0] >= 1000)
+	limited.attempts.clear()
+	limited.fail_status = 0
+	var unknown: Dictionary = await limited._request_json("/v1/me/state", HTTPClient.METHOD_PUT, {"value": {}})
+	_check("Unknown write outcomes are never retried", not unknown.ok and limited.attempts.size() == 1)
+	limited.queue_free()
 	var browser := BrowserAPI.new()
 	root.add_child(browser)
 	browser.is_connecting = true

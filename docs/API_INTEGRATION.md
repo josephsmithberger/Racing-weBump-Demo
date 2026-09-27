@@ -209,3 +209,19 @@ retry button only after failure. Slower races do not overwrite the best recordin
 An unchanged live publication is not renewed on reconnect; this device also records
 successful publication to avoid reviving that same replay after expiry/withdrawal.
 Private replay state is never returned by a visitor endpoint.
+
+
+### Visitor refresh and rate limits (September 26, 2026)
+
+The lobby refreshes the authorized inbox every ten seconds and on return, with
+one refresh in flight. Its count uses the same distinct-person, three-opponent
+roster as the race. Zero-delay weBump profiles have no extra API delay. Recent
+local Bluetooth proofs can be retried by the updated app; expired rolling IDs
+and older plaza history are not imported.
+
+Game API calls share a 300 ms minimum spacing and a 45-call rolling minute
+budget. A definite 429 respects `Retry-After` and retries at most twice; uncertain
+write failures and single-use OAuth exchanges are not retried. Normal shared-data
+410s briefly suppress repeat reads, never authorize a cached replay. A fresh
+bump epoch supplies a new reference. Opt-in and the start of publication must
+predate that epoch; a person who never connected this game is an AI rival.

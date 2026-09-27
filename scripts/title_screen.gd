@@ -448,22 +448,23 @@ func _on_approval_cancelled() -> void:
 # ===================================================================
 # VISITORS: everyone the player bumped since connecting, refreshed automatically
 # ===================================================================
-const VISITOR_REFRESH_SECONDS := 45.0
+const VISITOR_REFRESH_SECONDS := 10.0
 var _visitor_refresh := 0.0
 
 func _on_visitors_updated(cards: Array) -> void:
 	var api = _get_api()
 	if api == null or not api.is_authenticated or api.is_mock_mode:
 		return
-	if cards.is_empty():
-		hint_label.text = "No bumps yet - people you bump from now on show up here after weBump's reveal delay"
+	var rivals := RivalRoster.from_visitors(cards)
+	if rivals.is_empty():
+		hint_label.text = "No revealed rivals yet — open weBump to sync your recent bumps"
 		hint_label.add_theme_color_override("font_color", Color(0.55, 0.62, 0.75, 1.0))
 		return
 	var ghosts := 0
-	for card in cards:
-		if card is Dictionary and GhostData.is_valid(card.get("ghost_telemetry", {})):
+	for rival in rivals:
+		if rival.kind == "Ghost":
 			ghosts += 1
-	hint_label.text = "%d rival%s from your bumps ready - %d shared replay%s" % [cards.size(), "" if cards.size() == 1 else "s", ghosts, "" if ghosts == 1 else "s"]
+	hint_label.text = "%d rival%s ready to race - %d shared replay%s" % [rivals.size(), "" if rivals.size() == 1 else "s", ghosts, "" if ghosts == 1 else "s"]
 	hint_label.add_theme_color_override("font_color", Color(0.165, 0.690, 0.388, 1.0))
 
 func _refresh_visitors(delta: float) -> void:

@@ -75,6 +75,11 @@ var _write_queue: Array[Dictionary] = []
 var _writing := false
 var _refreshing := false
 var _session_generation := 0
+var _loading_visitors := false
+var _unavailable_shared: Dictionary = {}
+var _request_times: Array[int] = []
+var _request_after_ms := 0
+
 var _browser_connection_id := ""
 var _web_connection_callback
 var approval_method := "device_code"
@@ -398,6 +403,7 @@ func disconnect_player(revoke: bool = true) -> void:
 	token_expires_at = 0
 	current_player_profile.clear()
 	visitor_cards.clear()
+	_unavailable_shared.clear()
 	_handoff_pkce.clear()
 	_current_state = ""
 	_current_verifier = ""
@@ -464,18 +470,48 @@ func _http(path: String, method: HTTPClient.Method, payload: Dictionary = {}, to
 	var parsed: Variant = JSON.parse_string(response[3].get_string_from_utf8())
 	var ok: bool = response[0] == HTTPRequest.RESULT_SUCCESS and response[1] >= 200 and response[1] < 300 and parsed is Dictionary
 	var revision := ""
+	var retry_after := 1
 	for header in response[2]:
 		if header.to_lower().begins_with("etag:"):
 			revision = header.substr(5).strip_edges()
+		elif header.to_lower().begins_with("retry-after:"):
+			var seconds: String = header.substr(12).strip_edges()
+			if seconds.is_valid_int():
+				retry_after = maxi(1, seconds.to_int())
 	if not ok:
 		request_failed.emit(path, response[1])
-	return {"ok": ok, "status": response[1], "data": parsed if parsed is Dictionary else {}, "etag": revision}
+	return {"ok": ok, "status": response[1], "data": parsed if parsed is Dictionary else {}, "etag": revision, "retry_after": retry_after}
 
 ## Authorized game call. Refreshes an expiring access token first.
 func _request_json(path: String, method: HTTPClient.Method = HTTPClient.METHOD_GET, payload: Dictionary = {}, etag: String = "") -> Dictionary:
-	if not await _ensure_fresh_token():
-		return {"ok": false, "status": 401, "data": {}, "etag": ""}
-	return await _http(path, method, payload, access_token, etag)
+	var generation := _session_generation
+	for attempt in range(3):
+		# Share a pace and minute budget across visitors, autosaves and publication.
+		# Reserve before yielding so concurrent startup calls cannot burst together.
+		while generation == _session_generation:
+			var now := Time.get_ticks_msec()
+			while not _request_times.is_empty() and _request_times[0] <= now - 60000:
+				_request_times.pop_front()
+			var ready := _request_after_ms
+			if _request_times.size() >= 45:
+				ready = maxi(ready, _request_times[0] + 60000)
+			if now >= ready:
+				_request_times.append(now)
+				_request_after_ms = now + 300
+				break
+			await get_tree().create_timer(minf(float(ready - now) / 1000.0, 1.0)).timeout
+		if generation != _session_generation or not await _ensure_fresh_token():
+			return {"ok": false, "status": 401, "data": {}, "etag": ""}
+		var response := await _http(path, method, payload, access_token, etag)
+		if response.status != 429 or generation != _session_generation:
+			return response
+		var seconds: int = response.get("retry_after", 1)
+		_request_after_ms = maxi(_request_after_ms, Time.get_ticks_msec() + seconds * 1000 + 100)
+		# Only a definite rejection is retried. Never replay OAuth token exchanges
+		# or writes whose outcome is unknown after a timeout.
+		if attempt == 2 or seconds > 60:
+			return response
+	return {"ok": false, "status": 429, "data": {}, "etag": ""}
 
 ## Refresh responses are single-use and must never be retried: one attempt, and a
 ## failure ends the session so the player reconnects deliberately.
@@ -808,26 +844,46 @@ func set_visitor_cards(cards: Array) -> void:
 	visitor_cards = cards.slice(0, 50).duplicate(true)
 	visitors_updated.emit(visitor_cards)
 
-## Everyone the player bumped since connecting, once weBump's reveal delay has passed.
+## Current authorized visitors, including recent history synced by the app.
+## Zero-delay profiles appear on the next refresh; other profiles retain their chosen delay.
 ## No approval step: visitors.receive was granted when the player connected. Each
 ## rival's shared replay is fetched by reference; 410 means nothing is shared.
 func load_visitors() -> void:
-	if is_mock_mode or not is_authenticated:
+	if is_mock_mode or not is_authenticated or _loading_visitors:
 		return
+	_loading_visitors = true
+	await _load_visitors_once()
+	_loading_visitors = false
+
+func _load_visitors_once() -> void:
 	var generation := _session_generation
 	var response := await _request_json("/v1/me/visitors")
-	if not response.ok or generation != _session_generation:
+	if generation != _session_generation:
+		return
+	if not response.ok:
+		visitors_failed.emit("Couldn't refresh rivals yet. Retrying shortly.")
 		return
 	var cards: Array = []
+	var live_references := {}
 	for card in response.data.get("visitors", []):
 		if not card is Dictionary or not card.get("reference") is String:
 			continue
 		var fresh: Dictionary = card.duplicate(true)
-		if scopes.has("game.shared"):
+		live_references[card.reference] = true
+		if scopes.has("game.shared") and int(_unavailable_shared.get(card.reference, 0)) <= Time.get_ticks_msec():
 			var shared := await _request_json("/v1/me/visitors/" + card.reference.uri_encode() + "/shared")
+			if generation != _session_generation:
+				return
 			if shared.ok and shared.data.get("data") is Dictionary:
 				fresh["ghost_telemetry"] = shared.data.data
+			elif shared.status == 410:
+				# Unavailable is normal for a visitor who doesn't play this game.
+				# Bound negative caching; never keep personal replay data after a failed read.
+				_unavailable_shared[card.reference] = Time.get_ticks_msec() + 60000
 		cards.append(fresh)
+	for reference in _unavailable_shared.keys():
+		if not live_references.has(reference):
+			_unavailable_shared.erase(reference)
 	if generation == _session_generation:
 		set_visitor_cards(cards)
 
@@ -864,25 +920,8 @@ func redeem_visitor_handoff(code: String, returned_state: String) -> bool:
 
 ## Revalidate every card and fetch each rival's shared replay by reference.
 func refresh_visitors() -> void:
-	if is_mock_mode or not is_authenticated:
-		return
-	var refreshed: Array = []
-	for card in visitor_cards.duplicate(true):
-		if not card is Dictionary or not card.get("reference") is String:
-			continue
-		var reference: String = card.reference.uri_encode()
-		var response := await _request_json("/v1/me/visitors/" + reference)
-		if not response.ok:
-			continue
-		var fresh: Dictionary = response.data
-		if scopes.has("game.shared"):
-			# 410 means nothing is shared (opt-out, expiry, withdrawal, block); race that person as AI.
-			var shared := await _request_json("/v1/me/visitors/" + reference + "/shared")
-			if shared.ok and shared.data.get("data") is Dictionary:
-				fresh["ghost_telemetry"] = shared.data.data
-		refreshed.append(fresh)
-	# Fail closed: revoked, expired, or unavailable cards aren't raced from cache.
-	set_visitor_cards(refreshed)
+	# Fetch the current inbox instead of repeatedly following stale references.
+	await load_visitors()
 
 func _get_tree_safe() -> SceneTree:
 	if is_inside_tree() and get_tree():
