@@ -19,6 +19,12 @@ they chose to share races you as a ghost. Think StreetPass, in your own game.
 | [Project lifecycle](https://developer.webump.app/lifecycle) | Review, permissions changes, suspension and data export |
 | [Changelog](https://developer.webump.app/changelog) | Platform changes |
 
+## My contribution
+
+I built this demo on [Kenney's Starter Kit Racing](https://github.com/KenneyNL/Starter-Kit-Racing), which provides the original racing foundation and assets. My additions include the weBump API integration, account connection flow, shared ghost recording and playback, rival roster, lap timing and results, and the title-screen and race interface.
+
+The demo connects my work on weBump to a playable example and a [developer tutorial series](https://developer.webump.app/racing.html) for other game creators.
+
 ## What the demo does with the API
 
 Game-facing API calls live in [`scripts/webump_api.gd`](scripts/webump_api.gd),
